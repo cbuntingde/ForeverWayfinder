@@ -8,6 +8,7 @@
 ## Dependencies: QuestieDB, HandyNotes
 ## OptionalDeps: TomTom
 ## IconTexture: Interface\Icons\INV_Misc_Map_01
+## X-Website: https://github.com/cbuntingde/ForeverWayfinder
 
 Core.lua
 ZoneMap.lua

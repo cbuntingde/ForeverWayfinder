@@ -114,20 +114,28 @@ end
 
 local function FlagBits()
     local enum = _G.LibQuestieDB and _G.LibQuestieDB.Enum and _G.LibQuestieDB.Enum.npcFlags or {}
+    if type(enum) ~= "table" then enum = {} end
+    local function ReadFlag(key, fallback)
+        local value = enum[key]
+        if type(value) ~= "number" or value <= 0 or value % 1 ~= 0 then
+            return fallback
+        end
+        return value
+    end
     return {
-        VENDOR = enum.VENDOR or 4,
-        FLIGHT_MASTER = enum.FLIGHT_MASTER or 8,
-        TRAINER = enum.TRAINER or 16,
-        SPIRIT_HEALER = enum.SPIRIT_HEALER or 32,
-        INNKEEPER = enum.INNKEEPER or 128,
-        BANKER = enum.BANKER or 256,
-        TABARD_DESIGNER = enum.TABARD_DESIGNER or 1024,
-        BATTLEMASTER = enum.BATTLEMASTER or 2048,
-        AUCTIONEER = enum.AUCTIONEER or 4096,
-        STABLEMASTER = enum.STABLEMASTER or 8192,
-        REPAIR = enum.REPAIR or 16384,
-        BARBER = enum.BARBER or 33554432,
-        TRANSMOGRIFIER = enum.TRANSMOGRIFIER or 536870912,
+        VENDOR = ReadFlag("VENDOR", 4),
+        FLIGHT_MASTER = ReadFlag("FLIGHT_MASTER", 8),
+        TRAINER = ReadFlag("TRAINER", 16),
+        SPIRIT_HEALER = ReadFlag("SPIRIT_HEALER", 32),
+        INNKEEPER = ReadFlag("INNKEEPER", 128),
+        BANKER = ReadFlag("BANKER", 256),
+        TABARD_DESIGNER = ReadFlag("TABARD_DESIGNER", 1024),
+        BATTLEMASTER = ReadFlag("BATTLEMASTER", 2048),
+        AUCTIONEER = ReadFlag("AUCTIONEER", 4096),
+        STABLEMASTER = ReadFlag("STABLEMASTER", 8192),
+        REPAIR = ReadFlag("REPAIR", 16384),
+        BARBER = ReadFlag("BARBER", 33554432),
+        TRANSMOGRIFIER = ReadFlag("TRANSMOGRIFIER", 536870912),
     }
 end
 

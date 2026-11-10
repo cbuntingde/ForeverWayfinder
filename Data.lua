@@ -228,11 +228,10 @@ function ns:AddSpawn(mapID, x, y, cats, entry)
     for index = 1, #entries do
         if entries[index].id == entry.id then return end
     end
-    if #entries < 5 then
-        entries[#entries + 1] = entry
-    else
-        node.more = node.more + 1
-    end
+    entry.categories = entry.categories or {}
+    for key in pairs(cats) do entry.categories[key] = true end
+    entries[#entries + 1] = entry
+    node.more = 0
     return true
 end
 

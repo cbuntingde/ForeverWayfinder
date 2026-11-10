@@ -392,7 +392,9 @@ function ns:IndexObject(id)
                 local spawn = list[index]
                 if type(spawn) == "table" then
                     local x, y = spawn[1], spawn[2]
-                    if not ns.ClassificationIsCoordinate(x) then
+                    if IsUnavailablePosition(spawn) then
+                        self:RecordUnavailablePosition(entry, zoneID, spawn, mapID)
+                    elseif not ns.ClassificationIsCoordinate(x) then
                         self:RecordInvalidSpawn("invalid-x-coordinate", entry, zoneID, spawn, mapID)
                     elseif not ns.ClassificationIsCoordinate(y) then
                         self:RecordInvalidSpawn("invalid-y-coordinate", entry, zoneID, spawn, mapID)
@@ -404,7 +406,7 @@ function ns:IndexObject(id)
                 end
             end
         else
-            self:RecordUnresolvedZone(entry, zoneID, list)
+            self:RecordUnmappedArea(entry, zoneID, list)
         end
     end
 end

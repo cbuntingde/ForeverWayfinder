@@ -340,7 +340,8 @@ function ns:ScanStep()
     local scan = self.scan
     if not scan or scan.generation ~= self.scanGeneration then return end
 
-    local deadline = GetTime() + SCAN_BUDGET
+    local sliceStarted = GetTime()
+    local deadline = sliceStarted + SCAN_BUDGET
     local processed = 0
 
     if scan.phase == "npcs" then
@@ -373,6 +374,10 @@ function ns:ScanStep()
         end
     end
 
+    local sliceDuration = GetTime() - sliceStarted
+    if sliceDuration > (scan.maxSliceDuration or 0) then scan.maxSliceDuration = sliceDuration end
+    if processed > (scan.maxSliceProcessed or 0) then scan.maxSliceProcessed = processed end
+
     if scan.phase == "done" then
         if self.scanTicker then
             self.scanTicker:Cancel()
@@ -387,6 +392,8 @@ function ns:ScanStep()
         self.lastScan = {
             state = "complete", duration = GetTime() - scan.startedAt,
             enumerationDuration = scan.enumerationDuration,
+            maxSliceDuration = scan.maxSliceDuration or 0,
+            maxSliceProcessed = scan.maxSliceProcessed or 0,
             npcCount = scan.npcPos - 1, objectCount = scan.objPos - 1,
             errors = scan.errors or {},
         }

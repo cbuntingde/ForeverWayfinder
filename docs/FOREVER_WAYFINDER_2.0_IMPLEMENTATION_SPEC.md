@@ -549,9 +549,9 @@ Create one issue or task per independently reviewable unit:
 - [x] Add scan lifecycle, cancellation, and generation safety.
 - [x] Harden ZoneMap decoding, validation, and diagnostics.
 - [ ] Profile and bound startup enumeration if necessary.
-- [ ] Add complete shared-location NPC detail display.
-- [ ] Implement search service and category/zone filters.
-- [ ] Implement search UI and map selection behavior.
+- [x] Add complete shared-location NPC detail display (retain every indexed NPC entry per coordinate).
+- [x] Implement search service and category/zone filters.
+- [x] Implement search UI and guarded world-map/TomTom navigation actions.
 - [ ] Add waypoint provider abstraction and TomTom adapter.
 - [ ] Improve settings layout and status diagnostics.
 - [ ] Version and migrate saved-variable schema.

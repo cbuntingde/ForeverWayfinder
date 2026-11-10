@@ -2,20 +2,6 @@ local ADDON, ns = ...
 
 local floor = math.floor
 
-local CLASS_TRAINER_WORDS = {
-    "death knight", "warrior", "paladin", "hunter", "rogue", "priest",
-    "shaman", "mage", "warlock", "druid", "monk",
-}
-
-local PROFESSION_WORDS = {
-    "alchemy", "alchemist", "blacksmithing", "blacksmith", "enchanting", "enchanter",
-    "engineering", "engineer", "herbalism", "herbalist", "leatherworking", "leatherworker",
-    "mining", "miner", "skinning", "skinner", "tailoring", "tailor", "cooking", "cook",
-    "fishing", "fisherman", "fisher", "first aid", "riding", "jewelcrafting", "jeweler",
-    "inscription", "scribe", "archaeology", "archaeologist",
-    -- Profession trainers whose title names the craft rather than the profession.
-    "smith", "leather", "armorer", "butcher", "physician", "surgeon", "medic", "pilot",
-}
 
 -- Vendor stock icons. The first matching keyword wins, so profession-supply words sit above
 -- the retail-type words ("Leatherworking Supplies" before "leather" armor).
@@ -107,7 +93,7 @@ local VENDOR_ICON_KEYWORDS = {
 }
 
 local function Lower(value)
-    return type(value) == "string" and value:lower() or ""
+    return ns.ClassificationNormalizeText(value)
 end
 
 local function Find(text, needle)
@@ -124,28 +110,6 @@ local function VendorStockIcon(subName)
         end
     end
     return nil
-end
-
-local function TrainerCategory(subName)
-    local sub = Lower(subName)
-    if sub == "" then return "otherTrainer" end
-
-    if Find(sub, "portal") then return "portal" end
-    if Find(sub, "battle pet") or Find(sub, "pet trainer") then return "pet" end
-    if Find(sub, "weapon master") then return "weapon" end
-
-    for index = 1, #CLASS_TRAINER_WORDS do
-        if Find(sub, CLASS_TRAINER_WORDS[index]) then
-            return "classTrainer"
-        end
-    end
-    for index = 1, #PROFESSION_WORDS do
-        if Find(sub, PROFESSION_WORDS[index]) then
-            return "profession"
-        end
-    end
-
-    return "otherTrainer"
 end
 
 local function FlagBits()
@@ -165,28 +129,6 @@ local function FlagBits()
         BARBER = enum.BARBER or 33554432,
         TRANSMOGRIFIER = enum.TRANSMOGRIFIER or 536870912,
     }
-end
-
-local function CategoriesForNpc(flags, subName, bits)
-    local cats = {}
-
-    if ns.band(flags, bits.VENDOR) ~= 0 then cats.vendor = true end
-    if ns.band(flags, bits.REPAIR) ~= 0 then cats.repair = true end
-    if ns.band(flags, bits.INNKEEPER) ~= 0 then cats.innkeeper = true end
-    if ns.band(flags, bits.AUCTIONEER) ~= 0 then cats.auctioneer = true end
-    if ns.band(flags, bits.BANKER) ~= 0 then cats.banker = true end
-    if ns.band(flags, bits.FLIGHT_MASTER) ~= 0 then cats.flight = true end
-    if ns.band(flags, bits.STABLEMASTER) ~= 0 then cats.stable = true end
-    if ns.band(flags, bits.SPIRIT_HEALER) ~= 0 then cats.spirit = true end
-    if ns.band(flags, bits.BATTLEMASTER) ~= 0 then cats.battlemaster = true end
-    if ns.band(flags, bits.BARBER) ~= 0 then cats.barber = true end
-    if ns.band(flags, bits.TRANSMOGRIFIER) ~= 0 then cats.transmog = true end
-    if ns.band(flags, bits.TABARD_DESIGNER) ~= 0 then cats.tabard = true end
-    if ns.band(flags, bits.TRAINER) ~= 0 then
-        cats[TrainerCategory(subName)] = true
-    end
-
-    return cats
 end
 
 function ns:FactionAllowed(friendlyToFaction)
@@ -209,13 +151,36 @@ end
 function ns:ResetIndex()
     self.index = {}
     self.descCache = {}
-    self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {} }
+    self.stat = {
+        nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {},
+        invalidRecords = 0, invalidSpawns = 0, unresolvedZones = 0,
+        npcErrors = 0, objectErrors = 0,
+    }
     self.ready = false
 end
 
+function ns:RecordScanError(kind, id, message)
+    local scan = self.scan
+    if not scan then return end
+    scan.errors = scan.errors or {}
+    if #scan.errors < 5 then
+        scan.errors[#scan.errors + 1] = { kind = kind, id = id, message = tostring(message) }
+    end
+    if kind == "npc" then
+        self.stat.npcErrors = (self.stat.npcErrors or 0) + 1
+    else
+        self.stat.objectErrors = (self.stat.objectErrors or 0) + 1
+    end
+end
+
 function ns:AddSpawn(mapID, x, y, cats, entry)
+    if not ns.ClassificationIsPositiveInteger(mapID)
+        or not ns.ClassificationIsCoordinate(x) or not ns.ClassificationIsCoordinate(y)
+        or type(cats) ~= "table" or type(entry) ~= "table" then
+        self.stat.invalidSpawns = (self.stat.invalidSpawns or 0) + 1
+        return false
+    end
     local nx, ny = x / 100, y / 100
-    if nx < 0 or nx > 1 or ny < 0 or ny > 1 then return end
 
     local xi = floor(nx * 10000 + 0.5)
     local yi = floor(ny * 10000 + 0.5)
@@ -260,18 +225,27 @@ function ns:AddSpawn(mapID, x, y, cats, entry)
     else
         node.more = node.more + 1
     end
+    return true
 end
 
 function ns:IndexNpc(id, bits)
+    if not ns.ClassificationIsPositiveInteger(id) then
+        self.stat.invalidRecords = (self.stat.invalidRecords or 0) + 1
+        return
+    end
     local values = NpcDB.GetAll(id, { "name", "subName", "friendlyToFaction", "npcFlags" })
-    if not values then return end
+    if type(values) ~= "table" then return end
 
     local name = values[1]
     local subName = values[2]
     local friendly = values[3]
-    local flags = values[4] or 0
-
-    if not name or name == "" then return end
+    local flags = values[4]
+    if flags == nil then flags = 0 end
+    if not ns.ClassificationIsFiniteNumber(flags) or flags < 0 then
+        self.stat.invalidRecords = (self.stat.invalidRecords or 0) + 1
+        return
+    end
+    if type(name) ~= "string" or name == "" then return end
     if not self:FactionAllowed(friendly) then return end
 
     local classificationName = subName
@@ -279,11 +253,11 @@ function ns:IndexNpc(id, bits)
         classificationName = NpcDB.GetRaw(id, "subName") or subName
     end
 
-    local cats = CategoriesForNpc(flags, classificationName, bits)
+    local cats = ns.ClassificationCategoriesForNpc(flags, classificationName, bits, ns.band)
     if next(cats) == nil then return end
 
     local spawns = NpcDB.Get(id, "spawns")
-    if not spawns then return end
+    if type(spawns) ~= "table" then return end
 
     self.stat.npcs = self.stat.npcs + 1
     local entry = { name = name, sub = subName, id = id }
@@ -293,25 +267,32 @@ function ns:IndexNpc(id, bits)
 
     for zoneID, list in pairs(spawns) do
         local mapID = self.areaToMap[zoneID]
-        if mapID and mapID > 0 then
+        if ns.ClassificationIsPositiveInteger(mapID) and type(list) == "table" then
             for index = 1, #list do
                 local spawn = list[index]
-                local x, y = spawn[1], spawn[2]
-                if type(x) == "number" and type(y) == "number" then
-                    self:AddSpawn(mapID, x, y, cats, entry)
+                if type(spawn) == "table" then
+                    self:AddSpawn(mapID, spawn[1], spawn[2], cats, entry)
+                else
+                    self.stat.invalidSpawns = self.stat.invalidSpawns + 1
                 end
             end
+        else
+            self.stat.unresolvedZones = self.stat.unresolvedZones + 1
         end
     end
 end
 
 function ns:IndexObject(id)
+    if not ns.ClassificationIsPositiveInteger(id) then
+        self.stat.invalidRecords = (self.stat.invalidRecords or 0) + 1
+        return
+    end
     local rawName = ObjectDB.GetRaw(id, "name")
     local lower = Lower(rawName)
     if not (Find(lower, "mailbox") or Find(lower, "mail box")) then return end
 
     local spawns = ObjectDB.Get(id, "spawns")
-    if not spawns then return end
+    if type(spawns) ~= "table" then return end
 
     local name = ObjectDB.Get(id, "name") or rawName
     self.stat.objects = self.stat.objects + 1
@@ -321,14 +302,17 @@ function ns:IndexObject(id)
 
     for zoneID, list in pairs(spawns) do
         local mapID = self.areaToMap[zoneID]
-        if mapID and mapID > 0 then
+        if ns.ClassificationIsPositiveInteger(mapID) and type(list) == "table" then
             for index = 1, #list do
                 local spawn = list[index]
-                local x, y = spawn[1], spawn[2]
-                if type(x) == "number" and type(y) == "number" then
-                    self:AddSpawn(mapID, x, y, cats, entry)
+                if type(spawn) == "table" then
+                    self:AddSpawn(mapID, spawn[1], spawn[2], cats, entry)
+                else
+                    self.stat.invalidSpawns = self.stat.invalidSpawns + 1
                 end
             end
+        else
+            self.stat.unresolvedZones = self.stat.unresolvedZones + 1
         end
     end
 end
@@ -342,7 +326,7 @@ local SCAN_MAX_STEPS = 400
 
 function ns:ScanStep()
     local scan = self.scan
-    if not scan then return end
+    if not scan or scan.generation ~= self.scanGeneration then return end
 
     local deadline = GetTime() + SCAN_BUDGET
     local processed = 0
@@ -350,7 +334,9 @@ function ns:ScanStep()
     if scan.phase == "npcs" then
         local ids, pos, total = scan.npcIds, scan.npcPos, #scan.npcIds
         while pos <= total and processed < SCAN_MAX_STEPS and GetTime() < deadline do
-            self:IndexNpc(ids[pos], scan.bits)
+            local id = ids[pos]
+            local ok, err = pcall(self.IndexNpc, self, id, scan.bits)
+            if not ok then self:RecordScanError("npc", id, err) end
             pos = pos + 1
             processed = processed + 1
         end
@@ -363,7 +349,9 @@ function ns:ScanStep()
     if scan.phase == "objects" then
         local ids, pos, total = scan.objIds, scan.objPos, #scan.objIds
         while pos <= total and processed < SCAN_MAX_STEPS and GetTime() < deadline do
-            self:IndexObject(ids[pos])
+            local id = ids[pos]
+            local ok, err = pcall(self.IndexObject, self, id)
+            if not ok then self:RecordScanError("object", id, err) end
             pos = pos + 1
             processed = processed + 1
         end
@@ -384,46 +372,65 @@ function ns:ScanStep()
         self.stat.mapCount = count
         self.scan = nil
         self.ready = true
-
+        self.lastScan = {
+            state = "complete", duration = GetTime() - scan.startedAt,
+            enumerationDuration = scan.enumerationDuration,
+            npcCount = scan.npcPos - 1, objectCount = scan.objPos - 1,
+            errors = scan.errors or {},
+        }
         self:Refresh()
-        self:Print(("%d pins across %d maps (%.1fs)."):format(
-            self.stat.nodes, self.stat.mapCount, GetTime() - scan.startedAt))
+        self:Print(("%d pins across %d maps (%.1fs; %d record errors, %d invalid spawns)."):format(
+            self.stat.nodes, self.stat.mapCount, self.lastScan.duration,
+            (self.stat.npcErrors or 0) + (self.stat.objectErrors or 0),
+            self.stat.invalidSpawns or 0))
     else
         if self.UpdateUIStatus then self:UpdateUIStatus() end
     end
 end
 
 function ns:StartScan()
-    if self.blocked then return end
+    if self.blocked then return false end
     if not self.initialized then self:Init() end
-    if self.blocked then return end
+    if self.blocked then return false end
 
-    if self.scanTicker then
-        self.scanTicker:Cancel()
-        self.scanTicker = nil
+    self.scanGeneration = (self.scanGeneration or 0) + 1
+    local generation = self.scanGeneration
+    if self.scanTicker then self.scanTicker:Cancel(); self.scanTicker = nil end
+    if self.scan then
+        self.lastScan = { state = "cancelled", duration = GetTime() - self.scan.startedAt }
     end
 
     self:ResetIndex()
     self.myFaction = UnitFactionGroup("player")
-    if self.myFaction ~= "Alliance" and self.myFaction ~= "Horde" then
-        self.myFaction = nil
+    if self.myFaction ~= "Alliance" and self.myFaction ~= "Horde" then self.myFaction = nil end
+
+    local enumerationStarted = GetTime()
+    local npcOk, npcIds = pcall(NpcDB.GetAllIds)
+    local objOk, objIds = pcall(ObjectDB.GetAllIds)
+    if not npcOk or type(npcIds) ~= "table" then
+        self.lastScan = { state = "failed", reason = "QuestieDB NPC ID enumeration failed." }
+        self:Print("Indexing failed: QuestieDB NPC ID enumeration failed.")
+        self:UpdateUIStatus()
+        return false
+    end
+    if not objOk or type(objIds) ~= "table" then
+        self.lastScan = { state = "failed", reason = "QuestieDB object ID enumeration failed." }
+        self:Print("Indexing failed: QuestieDB object ID enumeration failed.")
+        self:UpdateUIStatus()
+        return false
     end
 
-    local npcIds = (NpcDB and NpcDB.GetAllIds and NpcDB.GetAllIds()) or {}
-    local objIds = (ObjectDB and ObjectDB.GetAllIds and ObjectDB.GetAllIds()) or {}
-
     self.scan = {
-        npcIds = npcIds,
-        objIds = objIds,
-        npcPos = 1,
-        objPos = 1,
+        generation = generation, npcIds = npcIds, objIds = objIds,
+        npcPos = 1, objPos = 1,
         phase = #npcIds > 0 and "npcs" or "objects",
-        bits = FlagBits(),
-        startedAt = GetTime(),
+        bits = FlagBits(), startedAt = GetTime(),
+        enumerationDuration = GetTime() - enumerationStarted, errors = {},
     }
-
+    self.lastScan = { state = "indexing", enumerationDuration = self.scan.enumerationDuration }
     self:Refresh()
     self.scanTicker = C_Timer.NewTicker(0.05, function()
-        self:ScanStep()
+        if generation == self.scanGeneration then self:ScanStep() end
     end)
+    return true
 end

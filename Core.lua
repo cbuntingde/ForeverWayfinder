@@ -356,6 +356,8 @@ local function HandleSlash(message)
                     text = text .. (", %d / %d objects"):format(scan.objPos - 1, #scan.objIds)
                 end
                 text = text .. ")"
+            elseif ns.lastScan and ns.lastScan.state then
+                text = text .. " (last scan: " .. ns.lastScan.state .. ")"
             end
             ns:Print(text)
         else

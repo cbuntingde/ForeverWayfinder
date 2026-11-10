@@ -288,6 +288,14 @@ function ns:CreateSearchUI()
     frame.categoryInput:SetScript("OnTextChanged", RefreshResults)
     frame.zoneInput:SetScript("OnTextChanged", RefreshResults)
     frame:SetScript("OnShow", RefreshResults)
+
+    frame.RefreshResults = RefreshResults
+    self.RefreshSearchResults = function(owner)
+        local searchFrame = owner.searchFrame
+        if searchFrame and searchFrame:IsShown() then
+            searchFrame.RefreshResults()
+        end
+    end
     frame:Hide()
     self.searchFrame = frame
     table.insert(UISpecialFrames, "ForeverWayfinderSearchFrame")

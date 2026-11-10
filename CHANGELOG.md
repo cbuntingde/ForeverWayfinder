@@ -11,3 +11,16 @@ Initial release.
 - Pin scale slider and a draggable minimap button.
 - Optional TomTom waypoints from a right-click on any pin.
 - Slash commands: `/fw`, `/fw on|off`, `/fw refresh`, `/fw reset`, `/fw status`.
+
+
+## 1.0.1
+
+Reliability and development-foundation release.
+
+- Extracted NPC trainer/category classification and data validation into a pure Lua module.
+- Added defensive validation for NPC/object IDs, flags, map IDs and spawn coordinates.
+- Isolated malformed records so one bad record does not abort the scan.
+- Added scan generation checks, cancellation state, protected per-record indexing and enumeration error handling.
+- Hardened QuestieDB zone-map decoding with a restricted chunk environment and validated mapping entries.
+- Expanded `/fw status` diagnostics and added a standalone Lua regression harness.
+- Preserved existing categories, settings, slash commands and map integrations.

@@ -32,8 +32,11 @@ function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
     local results = {}
     for mapID, nodes in pairs(self.index) do
         local mapName = MapName(mapID)
-        local zoneMatches = zoneFilter == "" or Contains(tostring(mapID), zoneFilter)
-            or Contains(ns.ClassificationNormalizeText(mapName), zoneFilter)
+        local numericZoneID = tonumber(zoneFilter)
+        local exactMapID = numericZoneID and ns.ClassificationIsPositiveInteger(numericZoneID)
+        local zoneMatches = zoneFilter == ""
+            or (exactMapID and mapID == numericZoneID)
+            or (not exactMapID and Contains(ns.ClassificationNormalizeText(mapName), zoneFilter))
 
         if zoneMatches and type(nodes) == "table" then
             for coord, node in pairs(nodes) do

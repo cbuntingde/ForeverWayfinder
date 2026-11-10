@@ -455,8 +455,9 @@ local function HandleSlash(message)
         else
             ReportLine(("%d pins across %d maps from %d NPCs and %d objects."):format(
                 ns.stat.nodes, ns.stat.mapCount, ns.stat.npcs, ns.stat.objects))
-            ReportLine(("%d invalid records, %d invalid spawns, %d unresolved zones."):format(
-                ns.stat.invalidRecords or 0, ns.stat.invalidSpawns or 0, ns.stat.unresolvedZones or 0))
+            ReportLine(("%d invalid records, %d invalid spawns, %d unavailable positions, %d unmapped areas."):format(
+                ns.stat.invalidRecords or 0, ns.stat.invalidSpawns or 0,
+                ns.stat.unavailablePositions or 0, ns.stat.unmappedAreas or 0))
             for reason, count in pairs(ns.stat.invalidSpawnReasons or {}) do
                 ReportLine(("Invalid spawn reason: %s = %d"):format(reason, count))
             end
@@ -465,9 +466,13 @@ local function HandleSlash(message)
                     index, tostring(item.name), tostring(item.id), tostring(item.zoneID),
                     tostring(item.mapID), tostring(item.x), tostring(item.y), tostring(item.reason)))
             end
-            for index, item in ipairs(ns.stat.unresolvedZoneSamples or {}) do
-                ReportLine(("Unresolved zone %d: %s (NPC/Object %s), area %s, spawn records %d"):format(
-                    index, tostring(item.name), tostring(item.id), tostring(item.zoneID), item.spawnCount or 0))
+            for index, item in ipairs(ns.stat.unavailablePositionSamples or {}) do
+                ReportLine(("Unavailable position %d: %s (NPC/Object %s), area %s, map %s; QuestieDB has no coordinates."):format(
+                    index, tostring(item.name), tostring(item.id), tostring(item.zoneID), tostring(item.mapID)))
+            end
+            for index, item in ipairs(ns.stat.unmappedAreaSamples or {}) do
+                ReportLine(("Unmapped area %d: %s (NPC/Object %s), area %s, spawn records %d"):format(
+                    index, tostring(item.name), tostring(item.id), tostring(item.areaID), item.spawnCount or 0))
             end
             if ns.lastScan then
                 ReportLine(("Last scan: %s; enumeration %.3fs; duration %.3fs; NPC errors %d; object errors %d."):format(

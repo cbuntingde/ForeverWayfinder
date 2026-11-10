@@ -286,7 +286,10 @@ function ns:CheckDependencies()
     end
 
     if self.BuildZoneMap then
-        local zonesOk, zoneMessage = self:BuildZoneMap()
+        local callOk, zonesOk, zoneMessage = pcall(self.BuildZoneMap, self)
+        if not callOk then
+            return false, "QuestieDB zone map initialization failed: " .. tostring(zonesOk)
+        end
         if not zonesOk then
             return false, zoneMessage or "QuestieDB zone data could not be read."
         end

@@ -303,6 +303,10 @@ function ns:IndexObject(id)
     if type(spawns) ~= "table" then return end
 
     local name = ObjectDB.Get(id, "name") or rawName
+    if type(name) ~= "string" or name == "" then
+        self.stat.invalidRecords = (self.stat.invalidRecords or 0) + 1
+        return
+    end
     self.stat.objects = self.stat.objects + 1
 
     local entry = { name = name, sub = "Mailbox", id = id }

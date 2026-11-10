@@ -2,7 +2,7 @@
 ## Title: Forever Wayfinder
 ## Notes: Find vendors, trainers and service NPCs on the world map and minimap, with TomTom waypoints.
 ## Author: Chris Bunting
-## Version: 1.0.0
+## Version: 1.0.1
 ## Category: Map & Minimap
 ## SavedVariables: ForeverWayfinderDB
 ## Dependencies: QuestieDB, HandyNotes
@@ -11,6 +11,7 @@
 ## X-Website: https://github.com/cbuntingde/ForeverWayfinder
 
 Core.lua
+Classification.lua
 ZoneMap.lua
 Data.lua
 Pins.lua

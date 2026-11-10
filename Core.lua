@@ -363,6 +363,7 @@ local function HandleSlash(message)
                 text = text .. " (last scan: " .. ns.lastScan.state .. ")"
             end
             ns:Print(text)
+            if ns.lastScan and ns.lastScan.reason then ns:Print(ns.lastScan.reason) end
         else
             ns:Print(("%d pins across %d maps from %d NPCs and %d objects."):format(
                 ns.stat.nodes, ns.stat.mapCount, ns.stat.npcs, ns.stat.objects))
@@ -374,6 +375,10 @@ local function HandleSlash(message)
                     ns.lastScan.duration or 0, ns.stat.npcErrors or 0, ns.stat.objectErrors or 0))
                 ns:Print(("Max scan slice: %.4fs / %d records."):format(
                     ns.lastScan.maxSliceDuration or 0, ns.lastScan.maxSliceProcessed or 0))
+                for index, item in ipairs(ns.lastScan.errors or {}) do
+                    ns:Print(("Sample error %d (%s %s): %s"):format(
+                        index, item.kind, tostring(item.id), item.message))
+                end
             end
         end
     else

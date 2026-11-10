@@ -17,6 +17,7 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 - HandyNotes plugin toggle, so the pins can also be switched from the HandyNotes options.
 - Optional TomTom waypoints: right-click any pin.
 - Draggable round minimap button.
+- Search every indexed NPC by name or sub-name, with category and zone/map filters.
 
 ## Requirements
 
@@ -39,9 +40,11 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 - `/fw on` / `/fw off` enables or disables all pins.
 - `/fw refresh` rebuilds the NPC index.
 - `/fw reset` restores default settings.
+- `/fw search` opens NPC search; filter by name, category, zone name, or map ID.
 - `/fw status` prints index statistics.
 - Left-click the minimap button to open the panel, right-click it to toggle minimap pins, drag it to move it around the minimap.
 - Hover a pin for the NPC names and coordinates. Right-click it to set a TomTom waypoint.
+- In search results, left-click to open/select the result's map when supported by the client; right-click to set a TomTom waypoint.
 
 ## Notes
 

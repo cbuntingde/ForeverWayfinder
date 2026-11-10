@@ -51,3 +51,12 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 ## License
 
 MIT. See `LICENSE`.
+
+
+## Diagnostics and development tests
+
+- `/fw status` reports index totals, invalid records/spawns, unresolved zone mappings, scan timing and record errors.
+- Malformed QuestieDB records are skipped without aborting the full index build.
+- Zone-map payloads are decoded in a restricted environment and validated before use.
+- Pure Lua regression tests are in `tests/run.lua`. From the repository root, run `lua tests/run.lua` with a Lua 5.1-compatible interpreter.
+- The standalone tests do not replace in-game testing against the declared client and supported QuestieDB/HandyNotes versions.

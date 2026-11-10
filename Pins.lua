@@ -158,7 +158,11 @@ function handler:OnEnter(uiMapID, coord)
         GameTooltip:AddLine("Service NPC", 1.00, 0.82, 0.00)
     end
 
-    for index = 2, #node.entries do
+    -- Keep map tooltips compact even when a crowded coordinate contains many NPCs.
+    -- The search window remains the complete discovery surface for every indexed entry.
+    local tooltipLimit = 12
+    local lastVisible = math.min(#node.entries, tooltipLimit)
+    for index = 2, lastVisible do
         local entry = node.entries[index]
         local text = entry.name
         if entry.sub and entry.sub ~= "" then
@@ -166,8 +170,10 @@ function handler:OnEnter(uiMapID, coord)
         end
         GameTooltip:AddLine(text, 0.86, 0.83, 0.74)
     end
-    if node.more > 0 then
-        GameTooltip:AddLine(("and %d more here"):format(node.more), 0.62, 0.59, 0.52)
+    local remaining = #node.entries - lastVisible
+    if remaining > 0 then
+        GameTooltip:AddLine(("%d more NPCs — use /fw search"):format(remaining),
+            0.62, 0.59, 0.52)
     end
 
     local categories = ns:GetNodeCategoryNames(node, true)

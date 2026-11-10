@@ -273,6 +273,11 @@ function ns:CreateUI()
     end)
     frame.defaultsButton:SetPoint("LEFT", frame.refreshButton, "RIGHT", 8, 0)
 
+    frame.searchButton = CreateButton(frame, "Search NPCs", 112, function()
+        ns:ToggleSearchUI()
+    end)
+    frame.searchButton:SetPoint("LEFT", frame.defaultsButton, "RIGHT", 8, 0)
+
     local version = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     version:SetPoint("BOTTOMRIGHT", -CONTENT_LEFT, 15)
     version:SetFormattedText("v%s", ns.VERSION)
@@ -331,8 +336,14 @@ function ns:UpdateUIStatus()
             if total < 1 then total = 1 end
             status:SetFormattedText("Indexing... %d / %d", done, total)
             bar:SetWidth(PROGRESS_WIDTH * math.min(done / total, 1))
+        elseif self.lastScan and self.lastScan.state == "failed" then
+            status:SetText("|cffff5555Indexing failed:|r " .. tostring(self.lastScan.reason or "see /fw status"))
+            bar:SetWidth(0)
+        elseif self.lastScan and self.lastScan.state == "blocked" then
+            status:SetText("|cffff5555Disabled:|r " .. tostring(self.lastScan.reason or self.blocked or "dependency error"))
+            bar:SetWidth(0)
         else
-            status:SetText("Indexing...")
+            status:SetText("Waiting to index QuestieDB data...")
             bar:SetWidth(0)
         end
         return

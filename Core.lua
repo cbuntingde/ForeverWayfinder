@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.0.0"
+ns.VERSION = "1.1.0"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -146,6 +146,70 @@ function ns:Print(message)
     DEFAULT_CHAT_FRAME:AddMessage(self.PREFIX .. " " .. tostring(message))
 end
 
+-- Show diagnostic output in a selectable edit box. WoW does not expose a general
+-- clipboard API to addons, but EditBox text can be copied with Ctrl+A / Ctrl+C.
+function ns:ShowCopyableReport(title, lines)
+    if not self.copyReportFrame then
+        local frame = CreateFrame("Frame", "ForeverWayfinderCopyReportFrame", UIParent, "BackdropTemplate")
+        frame:SetSize(760, 520)
+        frame:SetPoint("CENTER")
+        frame:SetFrameStrata("DIALOG")
+        frame:SetClampedToScreen(true)
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        frame:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        frame:SetBackdropColor(0.04, 0.035, 0.025, 0.98)
+        frame:SetBackdropBorderColor(0.55, 0.44, 0.23, 1)
+
+        local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        heading:SetPoint("TOPLEFT", 18, -16)
+        heading:SetTextColor(0.95, 0.82, 0.48)
+        frame.heading = heading
+
+        local instructions = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        instructions:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -7)
+        instructions:SetText("Click the report, press Ctrl+A, then Ctrl+C to copy. Press Esc to close.")
+
+        local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", -4, -4)
+
+        local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 18, -76)
+        scroll:SetPoint("BOTTOMRIGHT", -38, 18)
+
+        local edit = CreateFrame("EditBox", nil, scroll)
+        edit:SetMultiLine(true)
+        edit:SetAutoFocus(false)
+        edit:SetFontObject(ChatFontNormal)
+        edit:SetWidth(690)
+        edit:SetTextInsets(6, 6, 6, 6)
+        edit:SetScript("OnEscapePressed", function() frame:Hide() end)
+        edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+        scroll:SetScrollChild(edit)
+
+        frame.editBox = edit
+        frame.scrollFrame = scroll
+        self.copyReportFrame = frame
+    end
+
+    local frame = self.copyReportFrame
+    frame.heading:SetText(title or "Forever Wayfinder Report")
+    local text = table.concat(lines or {}, "\n")
+    frame.editBox:SetText(text)
+    frame.editBox:SetHeight(math.max(480, (select(2, text:gsub("\n", "")) + 2) * 16))
+    frame:Show()
+    frame.editBox:SetFocus()
+    frame.editBox:HighlightText()
+end
+
 function ns:CopyDefaults(target, defaults)
     for key, value in pairs(defaults) do
         if target[key] == nil then
@@ -210,13 +274,52 @@ end
 --------------------------------------------------------------------------------------------
 
 function ns:InitDB()
-    ForeverWayfinderDB = ForeverWayfinderDB or {}
+    if type(ForeverWayfinderDB) ~= "table" then ForeverWayfinderDB = {} end
     local db = ForeverWayfinderDB
-
     self:CopyDefaults(db, self.defaults)
-    db.categories = db.categories or {}
+    if type(db.categories) ~= "table" then db.categories = {} end
     self:CopyDefaults(db.categories, self.defaultCategories)
 
+    local booleanKeys = { "enabled", "showWorldMap", "showMinimap", "showOnContinent",
+        "factionFilter", "hideMinimapButton" }
+    for i = 1, #booleanKeys do
+        local key = booleanKeys[i]
+        if type(db[key]) ~= "boolean" then db[key] = self.defaults[key] end
+    end
+    for key, defaultValue in pairs(self.defaultCategories) do
+        if type(db.categories[key]) ~= "boolean" then db.categories[key] = defaultValue end
+    end
+    if type(db.pinScale) ~= "number" or db.pinScale ~= db.pinScale
+        or db.pinScale == math.huge or db.pinScale == -math.huge then
+        db.pinScale = self.defaults.pinScale
+    else
+        db.pinScale = math.max(0.5, math.min(1.5, db.pinScale))
+    end
+    if type(db.minimapAngle) ~= "number" or db.minimapAngle ~= db.minimapAngle
+        or db.minimapAngle == math.huge or db.minimapAngle == -math.huge then
+        db.minimapAngle = self.defaults.minimapAngle
+    else
+        db.minimapAngle = db.minimapAngle % 360
+    end
+    local validAnchors = {
+        TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
+        RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
+    }
+    local position = db.uiPosition
+    if type(position) ~= "table" or not validAnchors[position.point]
+        or type(position.x) ~= "number" or type(position.y) ~= "number"
+        or position.x ~= position.x or position.y ~= position.y
+        or position.x == math.huge or position.x == -math.huge
+        or position.y == math.huge or position.y == -math.huge then
+        db.uiPosition = nil
+    elseif not validAnchors[position.relativePoint] then
+        position.relativePoint = position.point
+    end
+    if type(db.schemaVersion) ~= "number" or db.schemaVersion ~= db.schemaVersion
+        or db.schemaVersion == math.huge or db.schemaVersion == -math.huge
+        or db.schemaVersion < 1 or db.schemaVersion % 1 ~= 0 then
+        db.schemaVersion = 1
+    end
     self.db = db
 end
 
@@ -261,7 +364,10 @@ function ns:CheckDependencies()
     end
 
     if self.BuildZoneMap then
-        local zonesOk, zoneMessage = self:BuildZoneMap()
+        local callOk, zonesOk, zoneMessage = pcall(self.BuildZoneMap, self)
+        if not callOk then
+            return false, "QuestieDB zone map initialization failed: " .. tostring(zonesOk)
+        end
         if not zonesOk then
             return false, zoneMessage or "QuestieDB zone data could not be read."
         end
@@ -298,6 +404,7 @@ local function PrintHelp()
     ns:Print("  /fw on | off - enable or disable all pins")
     ns:Print("  /fw refresh - rebuild the NPC index")
     ns:Print("  /fw reset - restore default settings")
+    ns:Print("  /fw search - search NPCs by name, category, or zone")
     ns:Print("  /fw status - show index statistics")
 end
 
@@ -319,24 +426,67 @@ local function HandleSlash(message)
         ns:Print("Rebuilding the NPC index.")
     elseif message == "reset" then
         ns:ResetSettings()
+    elseif message == "search" then
+        if ns.ToggleSearchUI then ns:ToggleSearchUI() end
     elseif message == "status" then
+        local lines = {}
+        local function ReportLine(message)
+            message = tostring(message)
+            lines[#lines + 1] = message
+            ns:Print(message)
+        end
+
         local scan = ns.scan
         if ns.blocked then
-            ns:Print("Disabled: " .. ns.blocked)
+            ReportLine("Disabled: " .. ns.blocked)
         elseif not ns.ready then
-            local text = "Indexing"
+            local status = "Indexing"
             if scan then
-                text = text .. (" (%d / %d NPCs"):format(scan.npcPos - 1, #scan.npcIds)
+                status = status .. (" (%d / %d NPCs"):format(scan.npcPos - 1, #scan.npcIds)
                 if scan.phase == "objects" then
-                    text = text .. (", %d / %d objects"):format(scan.objPos - 1, #scan.objIds)
+                    status = status .. (", %d / %d objects"):format(scan.objPos - 1, #scan.objIds)
                 end
-                text = text .. ")"
+                status = status .. ")"
+            elseif ns.lastScan and ns.lastScan.state then
+                status = status .. " (last scan: " .. ns.lastScan.state .. ")"
             end
-            ns:Print(text)
+            ReportLine(status)
+            if ns.lastScan and ns.lastScan.reason then ReportLine(ns.lastScan.reason) end
         else
-            ns:Print(("%d pins across %d maps from %d NPCs and %d objects."):format(
+            ReportLine(("%d pins across %d maps from %d NPCs and %d objects."):format(
                 ns.stat.nodes, ns.stat.mapCount, ns.stat.npcs, ns.stat.objects))
+            ReportLine(("%d invalid records, %d invalid spawns, %d unavailable positions, %d unmapped areas."):format(
+                ns.stat.invalidRecords or 0, ns.stat.invalidSpawns or 0,
+                ns.stat.unavailablePositions or 0, ns.stat.unmappedAreas or 0))
+            for reason, count in pairs(ns.stat.invalidSpawnReasons or {}) do
+                ReportLine(("Invalid spawn reason: %s = %d"):format(reason, count))
+            end
+            for index, item in ipairs(ns.stat.invalidSpawnSamples or {}) do
+                ReportLine(("Invalid spawn %d: %s (NPC/Object %s), zone %s, map %s, x=%s, y=%s, reason=%s"):format(
+                    index, tostring(item.name), tostring(item.id), tostring(item.zoneID),
+                    tostring(item.mapID), tostring(item.x), tostring(item.y), tostring(item.reason)))
+            end
+            for index, item in ipairs(ns.stat.unavailablePositionSamples or {}) do
+                ReportLine(("Unavailable position %d: %s (NPC/Object %s), area %s, map %s; QuestieDB has no coordinates."):format(
+                    index, tostring(item.name), tostring(item.id), tostring(item.zoneID), tostring(item.mapID)))
+            end
+            for index, item in ipairs(ns.stat.unmappedAreaSamples or {}) do
+                ReportLine(("Unmapped area %d: %s (NPC/Object %s), area %s, spawn records %d"):format(
+                    index, tostring(item.name), tostring(item.id), tostring(item.areaID), item.spawnCount or 0))
+            end
+            if ns.lastScan then
+                ReportLine(("Last scan: %s; enumeration %.3fs; duration %.3fs; NPC errors %d; object errors %d."):format(
+                    ns.lastScan.state or "unknown", ns.lastScan.enumerationDuration or 0,
+                    ns.lastScan.duration or 0, ns.stat.npcErrors or 0, ns.stat.objectErrors or 0))
+                ReportLine(("Max scan slice: %.4fs / %d records."):format(
+                    ns.lastScan.maxSliceDuration or 0, ns.lastScan.maxSliceProcessed or 0))
+                for index, item in ipairs(ns.lastScan.errors or {}) do
+                    ReportLine(("Sample error %d (%s %s): %s"):format(
+                        index, item.kind, tostring(item.id), item.message))
+                end
+            end
         end
+        ns:ShowCopyableReport("Forever Wayfinder - Status", lines)
     else
         PrintHelp()
     end
@@ -359,15 +509,20 @@ function ns:Init()
     local ok, reason = self:CheckDependencies()
     if not ok then
         self.blocked = reason
+        self.lastScan = { state = "blocked", reason = reason }
         self:Print("Disabled: " .. reason)
         if self.CreateUI then self:CreateUI() end
         return
     end
 
-    self.index = {}
-    self.descCache = {}
-    self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {} }
-    self.ready = false
+    if self.ResetIndex then
+        self:ResetIndex()
+    else
+        self.index = {}
+        self.descCache = {}
+        self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {} }
+        self.ready = false
+    end
 
     self:RegisterHandyNotes()
     if self.CreateUI then self:CreateUI() end

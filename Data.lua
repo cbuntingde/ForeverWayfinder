@@ -418,6 +418,8 @@ function ns:StartScan()
     if self.scan then
         self.lastScan = { state = "cancelled", duration = GetTime() - self.scan.startedAt }
     end
+    -- Do not leave a stale scan object behind if the new ID enumeration fails.
+    self.scan = nil
 
     self:ResetIndex()
     self.myFaction = UnitFactionGroup("player")

@@ -237,11 +237,25 @@ function ns:InitDB()
     else
         db.minimapAngle = db.minimapAngle % 360
     end
-    if type(db.uiPosition) ~= "table" or type(db.uiPosition.point) ~= "string"
-        or type(db.uiPosition.x) ~= "number" or type(db.uiPosition.y) ~= "number" then
+    local validAnchors = {
+        TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
+        RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
+    }
+    local position = db.uiPosition
+    if type(position) ~= "table" or not validAnchors[position.point]
+        or type(position.x) ~= "number" or type(position.y) ~= "number"
+        or position.x ~= position.x or position.y ~= position.y
+        or position.x == math.huge or position.x == -math.huge
+        or position.y == math.huge or position.y == -math.huge then
         db.uiPosition = nil
+    elseif not validAnchors[position.relativePoint] then
+        position.relativePoint = position.point
     end
-    if type(db.schemaVersion) ~= "number" or db.schemaVersion < 1 then db.schemaVersion = 1 end
+    if type(db.schemaVersion) ~= "number" or db.schemaVersion ~= db.schemaVersion
+        or db.schemaVersion == math.huge or db.schemaVersion == -math.huge
+        or db.schemaVersion < 1 or db.schemaVersion % 1 ~= 0 then
+        db.schemaVersion = 1
+    end
     self.db = db
 end
 

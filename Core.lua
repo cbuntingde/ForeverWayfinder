@@ -372,6 +372,8 @@ local function HandleSlash(message)
                 ns:Print(("Last scan: %s; enumeration %.3fs; duration %.3fs; NPC errors %d; object errors %d."):format(
                     ns.lastScan.state or "unknown", ns.lastScan.enumerationDuration or 0,
                     ns.lastScan.duration or 0, ns.stat.npcErrors or 0, ns.stat.objectErrors or 0))
+                ns:Print(("Max scan slice: %.4fs / %d records."):format(
+                    ns.lastScan.maxSliceDuration or 0, ns.lastScan.maxSliceProcessed or 0))
             end
         end
     else

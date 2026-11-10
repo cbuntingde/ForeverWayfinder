@@ -241,7 +241,7 @@ function ns:IndexNpc(id, bits)
     local friendly = values[3]
     local flags = values[4]
     if flags == nil then flags = 0 end
-    if not ns.ClassificationIsFiniteNumber(flags) or flags < 0 then
+    if not ns.ClassificationIsFiniteNumber(flags) or flags < 0 or flags % 1 ~= 0 then
         self.stat.invalidRecords = (self.stat.invalidRecords or 0) + 1
         return
     end

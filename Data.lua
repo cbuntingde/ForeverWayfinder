@@ -413,6 +413,7 @@ function ns:StartScan()
     if self.myFaction ~= "Alliance" and self.myFaction ~= "Horde" then self.myFaction = nil end
 
     local enumerationStarted = GetTime()
+    self.lastScan = { state = "enumerating", startedAt = enumerationStarted }
     local npcOk, npcIds = pcall(NpcDB.GetAllIds)
     local objOk, objIds = pcall(ObjectDB.GetAllIds)
     if not npcOk or type(npcIds) ~= "table" then

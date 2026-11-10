@@ -61,6 +61,13 @@ eq(shared.cats.repair, true, "second category merged")
 eq(ns:AddSpawn(100, 101, 50, { vendor = true }, { id = 12 }), false, "invalid coordinate rejected")
 eq(ns.stat.invalidSpawns, 1, "invalid spawn counted")
 
+for index = 1, 6 do
+    eq(ns:AddSpawn(100, 50, 25, { vendor = true }, {
+        id = 20 + index, name = "Extra NPC " .. index,
+    }), true, "additional shared NPC " .. index)
+end
+eq(#shared.entries, 8, "all shared-location NPCs retained")
+
 local fakeBits = { VENDOR=1, REPAIR=2, INNKEEPER=4, AUCTIONEER=8, BANKER=16,
     FLIGHT_MASTER=32, STABLEMASTER=64, SPIRIT_HEALER=128, BATTLEMASTER=256,
     BARBER=512, TRANSMOGRIFIER=1024, TABARD_DESIGNER=2048, TRAINER=4096 }
@@ -118,14 +125,14 @@ ns.index = {
 }
 C_Map = { GetMapInfo = function(id) return { name = id == 100 and "Stormwind City" or "Ironforge" } end }
 local allShared = ns:SearchEntries("", "", "Stormwind")
-eq(#allShared, 2, "all shared NPCs searchable")
+eq(#allShared, 8, "all shared NPCs searchable")
 local byCategory = ns:SearchEntries("", "repair", "")
 eq(#byCategory, 1, "category filter")
 eq(byCategory[1].entry.name, "Vendor B", "category result identity")
 local byZone = ns:SearchEntries("ari", "", "ironforge")
 eq(#byZone, 1, "case-insensitive zone and name filter")
 eq(byZone[1].mapID, 200, "zone map ID")
-local limited = ns:SearchEntries("", "", "map", 1)
+local limited = ns:SearchEntries("vendor", "", "", 1)
 eq(#limited, 1, "search result limit")
 
 print("Forever Wayfinder tests passed.")

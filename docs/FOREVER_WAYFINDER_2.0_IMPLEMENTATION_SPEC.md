@@ -3,7 +3,7 @@
 **Status:** Proposed implementation plan  
 **Target:** Forever Wayfinder 2.0  
 **Baseline reviewed:** Repository state on `main` at the time this specification was prepared  
-**Implementation tracking:** Phase 0 completed; Phase 1 foundation implemented, validation pending CI/in-game checks  
+**Implementation tracking:** Phase 0 completed; Phase 1 foundation and Phase 2 search implementation added, automated and in-game validation pending  
 **Primary objective:** Evolve Forever Wayfinder from a map-pin locator into a dependable, searchable NPC and point-of-interest discovery and navigation addon.
 
 ---

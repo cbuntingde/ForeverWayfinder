@@ -9,14 +9,24 @@ local function DecodeTable(source, chunkName)
     if type(source) ~= "string" or source == "" then
         return nil, "source is missing or is not a non-empty string"
     end
-    local loader = loadstring or load
-    if type(loader) ~= "function" then return nil, "no supported Lua chunk loader is available" end
-
-    local compiled, chunk, compileError = pcall(loader, source, "=" .. tostring(chunkName))
-    if not compiled then return nil, tostring(chunk) end
+    local chunk, compileError
+    if type(loadstring) == "function" then
+        local compiled, result, reason = pcall(loadstring, source, "=" .. tostring(chunkName))
+        if not compiled then return nil, tostring(result) end
+        chunk, compileError = result, reason
+        if chunk and type(setfenv) == "function" then
+            local sandboxed, sandboxError = pcall(setfenv, chunk, {})
+            if not sandboxed then return nil, tostring(sandboxError) end
+        end
+    elseif type(load) == "function" then
+        -- Lua 5.2+ accepts an explicit environment in load's fourth argument.
+        local compiled, result, reason = pcall(load, source, "=" .. tostring(chunkName), "t", {})
+        if not compiled then return nil, tostring(result) end
+        chunk, compileError = result, reason
+    else
+        return nil, "no supported Lua chunk loader is available"
+    end
     if not chunk then return nil, tostring(compileError) end
-    -- QuestieDB supplies table literals. Do not expose client/addon globals to the chunk.
-    if type(setfenv) == "function" then setfenv(chunk, {}) end
     local ok, value = pcall(chunk)
     if not ok then return nil, tostring(value) end
     if type(value) ~= "table" then return nil, "decoded value is not a table" end
@@ -55,9 +65,11 @@ function ns:BuildZoneMap()
         local overrideRaw, overrideError = DecodeTable(private.areaIdToUiMapIdOverride,
             "QuestieDB.ZoneDB.areaIdToUiMapIdOverride")
         if not overrideRaw then return false, "QuestieDB map override failed to decode: " .. tostring(overrideError) end
-        local validated, validationError, invalidCount = ValidateMapping(overrideRaw, "QuestieDB map override")
-        if not validated then return false, validationError end
-        override, invalidOverride = validated, invalidCount or 0
+        if next(overrideRaw) ~= nil then
+            local validated, validationError, invalidCount = ValidateMapping(overrideRaw, "QuestieDB map override")
+            if not validated then return false, validationError end
+            override, invalidOverride = validated, invalidCount or 0
+        end
     end
 
     local areaToMap = {}

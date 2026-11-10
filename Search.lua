@@ -174,15 +174,33 @@ function ns:CreateSearchUI()
             if ok and type(WorldMapFrame.Show) == "function" then
                 WorldMapFrame:Show()
             end
+        else
+            ns:Print("This client does not expose world-map selection from addons.")
         end
-        if TomTom and type(TomTom.AddWaypoint) == "function" then
-            local ok = pcall(TomTom.AddWaypoint, TomTom, result.mapID, result.node.x, result.node.y, {
-                title = ns:GetNodeTitle(result.node),
-                crazy = true,
-                from = "ForeverWayfinder",
-            })
-            if not ok then ns:Print("TomTom could not create a waypoint for this location.") end
+    end
+
+    local function SetWaypoint(result)
+        if not TomTom or type(TomTom.AddWaypoint) ~= "function" then
+            ns:Print("TomTom is not installed; waypoint navigation is unavailable.")
+            return
         end
+        local ok = pcall(TomTom.AddWaypoint, TomTom, result.mapID, result.node.x, result.node.y, {
+            title = result.entry.name or ns:GetNodeTitle(result.node),
+            crazy = true,
+            from = "ForeverWayfinder",
+        })
+        if not ok then ns:Print("TomTom could not create a waypoint for this location.") end
+    end
+
+    local function EntryCategoryNames(entry)
+        local names = {}
+        for index = 1, #(ns.categoryList or {}) do
+            local category = ns.categoryList[index]
+            if entry.categories and entry.categories[category.key] then
+                names[#names + 1] = category.name
+            end
+        end
+        return table.concat(names, " · ")
     end
 
     local function RefreshResults()
@@ -223,16 +241,11 @@ function ns:CreateSearchUI()
                     row:SetScript("OnEnter", function(self) self.background:SetAlpha(1) end)
                     row:SetScript("OnLeave", function(self) self.background:SetAlpha(0) end)
                     row:SetScript("OnClick", function(self, button)
-                        if self.result then
-                            if button == "RightButton" then
-                                if TomTom and type(TomTom.AddWaypoint) == "function" then
-                                    FocusMap(self.result)
-                                else
-                                    ns:Print("TomTom is not installed; open the result's zone on the world map.")
-                                end
-                            else
-                                FocusMap(self.result)
-                            end
+                        if not self.result then return end
+                        if button == "RightButton" then
+                            SetWaypoint(self.result)
+                        else
+                            FocusMap(self.result)
                         end
                     end)
                     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -243,7 +256,7 @@ function ns:CreateSearchUI()
                 row.result = result
                 row.name:SetText(entry.name or "Unknown NPC")
                 local sub = type(entry.sub) == "string" and entry.sub ~= "" and (" · " .. entry.sub) or ""
-                local cats = ns:GetNodeCategoryNames(result.node, false)
+                local cats = EntryCategoryNames(entry)
                 row.detail:SetText(("%s%s  |  %s  |  %.1f, %.1f"):format(
                     result.mapName, sub, cats, result.node.x * 100, result.node.y * 100))
                 row:Show()

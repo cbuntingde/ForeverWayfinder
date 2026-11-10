@@ -3,6 +3,7 @@
 **Status:** Proposed implementation plan  
 **Target:** Forever Wayfinder 2.0  
 **Baseline reviewed:** Repository state on `main` at the time this specification was prepared  
+**Implementation tracking:** Phase 0 completed; Phase 1 foundation implemented, validation pending CI/in-game checks  
 **Primary objective:** Evolve Forever Wayfinder from a map-pin locator into a dependable, searchable NPC and point-of-interest discovery and navigation addon.
 
 ---
@@ -540,13 +541,13 @@ A 2.0 feature is complete only when:
 Create one issue or task per independently reviewable unit:
 
 - [ ] Document supported client and dependency matrix.
-- [ ] Map current public API, TOC load order, saved variables, and settings.
-- [ ] Add pure-Lua test harness and representative fixtures.
+- [x] Map current public API, TOC load order, saved variables, and settings.
+- [x] Add pure-Lua test harness and representative fixtures.
 - [ ] Define normalized NPC/spawn record contract.
-- [ ] Extract and test classification rules.
+- [x] Extract and test classification rules.
 - [ ] Add robust coordinate/faction/flag validation.
-- [ ] Add scan lifecycle, cancellation, and generation safety.
-- [ ] Harden ZoneMap decoding, validation, and diagnostics.
+- [x] Add scan lifecycle, cancellation, and generation safety.
+- [x] Harden ZoneMap decoding, validation, and diagnostics.
 - [ ] Profile and bound startup enumeration if necessary.
 - [ ] Add complete shared-location NPC detail display.
 - [ ] Implement search service and category/zone filters.

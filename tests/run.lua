@@ -54,7 +54,7 @@ local entryA = { id = 10, name = "Vendor A" }
 local entryB = { id = 11, name = "Vendor B" }
 eq(ns:AddSpawn(100, 50, 25, { vendor = true }, entryA), true, "first spawn")
 eq(ns:AddSpawn(100, 50, 25, { repair = true }, entryB), true, "shared spawn")
-local shared = ns:GetNode and ns:GetNode(100, 50002500) or ns.index[100][50002500]
+local shared = ns.index[100][50002500]
 eq(#shared.entries, 2, "shared-location entries")
 eq(shared.cats.vendor, true, "first category merged")
 eq(shared.cats.repair, true, "second category merged")

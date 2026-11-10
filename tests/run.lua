@@ -43,12 +43,50 @@ eq(ns.ClassificationIsCoordinate(100), true, "upper coordinate")
 eq(ns.ClassificationIsCoordinate(-1), false, "negative coordinate")
 eq(ns.ClassificationIsCoordinate(101), false, "out of range coordinate")
 eq(ns.ClassificationIsCoordinate(math.huge), false, "infinite coordinate")
+local dataChunk, dataError = loadfile("Data.lua")
+assert(dataChunk, dataError)
+dataChunk("ForeverWayfinder", ns)
+ns.band = band
+ns.db = { factionFilter = false }
+ns.areaToMap = { [1] = 100 }
+ns:ResetIndex()
+local entryA = { id = 10, name = "Vendor A" }
+local entryB = { id = 11, name = "Vendor B" }
+eq(ns:AddSpawn(100, 50, 25, { vendor = true }, entryA), true, "first spawn")
+eq(ns:AddSpawn(100, 50, 25, { repair = true }, entryB), true, "shared spawn")
+local shared = ns:GetNode and ns:GetNode(100, 5025000) or ns.index[100][5025000]
+eq(#shared.entries, 2, "shared-location entries")
+eq(shared.cats.vendor, true, "first category merged")
+eq(shared.cats.repair, true, "second category merged")
+eq(ns:AddSpawn(100, 101, 50, { vendor = true }, { id = 12 }), false, "invalid coordinate rejected")
+eq(ns.stat.invalidSpawns, 1, "invalid spawn counted")
+
+local fakeBits = { VENDOR=1, REPAIR=2, INNKEEPER=4, AUCTIONEER=8, BANKER=16,
+    FLIGHT_MASTER=32, STABLEMASTER=64, SPIRIT_HEALER=128, BATTLEMASTER=256,
+    BARBER=512, TRANSMOGRIFIER=1024, TABARD_DESIGNER=2048, TRAINER=4096 }
+NpcDB = {
+    GetAll = function(id)
+        if id == 102 then return { "Malformed NPC", nil, nil, "not-a-flag" } end
+        return { "Mage NPC", "Mage Trainer", "A", fakeBits.TRAINER }
+    end,
+    GetRaw = function() return "Mage Trainer" end,
+    Get = function() return { [1] = { { 40, 60 } } } end,
+}
+ns:IndexNpc(101, fakeBits)
+eq(ns.stat.npcs, 1, "NPC indexed")
+eq(ns.index[100][4060000].cats.classTrainer, true, "NPC trainer category indexed")
+ns:IndexNpc(102, fakeBits)
+eq(ns.stat.invalidRecords, 1, "malformed NPC flags counted")
+
 local zoneChunk, zoneError = loadfile("ZoneMap.lua")
 assert(zoneChunk, zoneError)
 local zoneNS = {}
 zoneChunk("ForeverWayfinder", zoneNS)
 local decoded = zoneNS.DecodeZoneMapTable("return { [1] = 2, [3] = 4 }", "fixture")
 eq(decoded[1], 2, "decoded map")
+local validated, validationError, invalidCount = zoneNS.ValidateZoneMapMapping({ [1] = 2, ["bad"] = 3, [4] = 0 }, "test")
+eq(validated[1], 2, "validated mapping")
+eq(invalidCount, 2, "invalid mapping entries counted")
 local unsafe = zoneNS.DecodeZoneMapTable("return setmetatable({}, {})", "unsafe")
 eq(unsafe, nil, "sandbox blocks globals")
 local malformed, malformedError = zoneNS.DecodeZoneMapTable("not valid lua", "malformed")

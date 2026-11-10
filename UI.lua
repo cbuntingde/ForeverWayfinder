@@ -273,6 +273,11 @@ function ns:CreateUI()
     end)
     frame.defaultsButton:SetPoint("LEFT", frame.refreshButton, "RIGHT", 8, 0)
 
+    frame.searchButton = CreateButton(frame, "Search NPCs", 112, function()
+        ns:ToggleSearchUI()
+    end)
+    frame.searchButton:SetPoint("LEFT", frame.defaultsButton, "RIGHT", 8, 0)
+
     local version = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     version:SetPoint("BOTTOMRIGHT", -CONTENT_LEFT, 15)
     version:SetFormattedText("v%s", ns.VERSION)

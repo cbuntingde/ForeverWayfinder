@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.0.1"
+ns.VERSION = "1.1.0"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -340,6 +340,7 @@ local function PrintHelp()
     ns:Print("  /fw on | off - enable or disable all pins")
     ns:Print("  /fw refresh - rebuild the NPC index")
     ns:Print("  /fw reset - restore default settings")
+    ns:Print("  /fw search - search NPCs by name, category, or zone")
     ns:Print("  /fw status - show index statistics")
 end
 
@@ -361,6 +362,8 @@ local function HandleSlash(message)
         ns:Print("Rebuilding the NPC index.")
     elseif message == "reset" then
         ns:ResetSettings()
+    elseif message == "search" then
+        if ns.ToggleSearchUI then ns:ToggleSearchUI() end
     elseif message == "status" then
         local scan = ns.scan
         if ns.blocked then

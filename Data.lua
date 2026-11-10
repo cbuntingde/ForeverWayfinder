@@ -161,10 +161,10 @@ function ns:ResetIndex()
     self.descCache = {}
     self.stat = {
         nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {},
-        invalidRecords = 0, invalidSpawns = 0, unresolvedZones = 0,
-        npcErrors = 0, objectErrors = 0,
+        invalidRecords = 0, invalidSpawns = 0, unavailablePositions = 0,
+        unmappedAreas = 0, npcErrors = 0, objectErrors = 0,
         invalidSpawnReasons = {}, invalidSpawnSamples = {},
-        unresolvedZoneSamples = {},
+        unavailablePositionSamples = {}, unmappedAreaSamples = {},
     }
     self.ready = false
 end
@@ -202,18 +202,36 @@ function ns:RecordInvalidSpawn(reason, entry, zoneID, spawn, mapID)
     end
 end
 
-function ns:RecordUnresolvedZone(entry, zoneID, list)
+function ns:RecordUnavailablePosition(entry, zoneID, spawn, mapID)
     local stat = self.stat
-    stat.unresolvedZones = (stat.unresolvedZones or 0) + 1
-    stat.unresolvedZoneSamples = stat.unresolvedZoneSamples or {}
-    if #stat.unresolvedZoneSamples < 20 then
-        stat.unresolvedZoneSamples[#stat.unresolvedZoneSamples + 1] = {
+    stat.unavailablePositions = (stat.unavailablePositions or 0) + 1
+    stat.unavailablePositionSamples = stat.unavailablePositionSamples or {}
+    if #stat.unavailablePositionSamples < 20 then
+        stat.unavailablePositionSamples[#stat.unavailablePositionSamples + 1] = {
             name = entry and entry.name or "Unknown",
             id = entry and entry.id or "unknown",
             zoneID = tostring(zoneID),
+            mapID = mapID or "unknown",
+        }
+    end
+end
+
+function ns:RecordUnmappedArea(entry, areaID, list)
+    local stat = self.stat
+    stat.unmappedAreas = (stat.unmappedAreas or 0) + 1
+    stat.unmappedAreaSamples = stat.unmappedAreaSamples or {}
+    if #stat.unmappedAreaSamples < 20 then
+        stat.unmappedAreaSamples[#stat.unmappedAreaSamples + 1] = {
+            name = entry and entry.name or "Unknown",
+            id = entry and entry.id or "unknown",
+            areaID = tostring(areaID),
             spawnCount = type(list) == "table" and #list or 0,
         }
     end
+end
+
+local function IsUnavailablePosition(spawn)
+    return type(spawn) == "table" and spawn[1] == -1 and spawn[2] == -1
 end
 
 function ns:AddSpawn(mapID, x, y, cats, entry)
@@ -326,7 +344,9 @@ function ns:IndexNpc(id, bits)
                 local spawn = list[index]
                 if type(spawn) == "table" then
                     local x, y = spawn[1], spawn[2]
-                    if not ns.ClassificationIsCoordinate(x) then
+                    if IsUnavailablePosition(spawn) then
+                        self:RecordUnavailablePosition(entry, zoneID, spawn, mapID)
+                    elseif not ns.ClassificationIsCoordinate(x) then
                         self:RecordInvalidSpawn("invalid-x-coordinate", entry, zoneID, spawn, mapID)
                     elseif not ns.ClassificationIsCoordinate(y) then
                         self:RecordInvalidSpawn("invalid-y-coordinate", entry, zoneID, spawn, mapID)
@@ -338,7 +358,7 @@ function ns:IndexNpc(id, bits)
                 end
             end
         else
-            self:RecordUnresolvedZone(entry, zoneID, list)
+            self:RecordUnmappedArea(entry, zoneID, list)
         end
     end
 end

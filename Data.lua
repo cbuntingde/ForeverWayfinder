@@ -397,6 +397,7 @@ function ns:ScanStep()
             errors = scan.errors or {},
         }
         self:Refresh()
+        if self.RefreshSearchResults then self:RefreshSearchResults() end
         self:Print(("%d pins across %d maps (%.1fs; %d record errors, %d invalid spawns)."):format(
             self.stat.nodes, self.stat.mapCount, self.lastScan.duration,
             (self.stat.npcErrors or 0) + (self.stat.objectErrors or 0),

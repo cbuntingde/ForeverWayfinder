@@ -9,6 +9,12 @@ local function DecodeTable(source, chunkName)
     if type(source) ~= "string" or source == "" then
         return nil, "source is missing or is not a non-empty string"
     end
+    if #source > 2 * 1024 * 1024 then
+        return nil, "source exceeds the 2 MiB safety limit"
+    end
+    if source:byte(1) == 27 then
+        return nil, "binary Lua chunks are not accepted"
+    end
     local chunk, compileError
     if type(loadstring) == "function" then
         local compiled, result, reason = pcall(loadstring, source, "=" .. tostring(chunkName))

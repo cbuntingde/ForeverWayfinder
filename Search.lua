@@ -131,6 +131,15 @@ function ns:CreateSearchUI()
 
     local frame = CreateFrame("Frame", "ForeverWayfinderSearchFrame", UIParent,
         BackdropTemplateMixin and "BackdropTemplate" or nil)
+
+    -- The settings panel and search window share FULLSCREEN_DIALOG strata.
+    -- Explicitly place search above the button that opened it so it cannot be
+    -- obscured by the settings panel.
+    local settingsButton = self.uiFrame and self.uiFrame.searchButton
+    if settingsButton then
+        frame:SetFrameLevel(settingsButton:GetFrameLevel() + 10)
+    end
+
     frame:SetSize(SEARCH_WIDTH, SEARCH_HEIGHT)
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
     frame:SetClampedToScreen(true)
@@ -318,6 +327,11 @@ function ns:ToggleSearchUI()
     if frame:IsShown() then
         frame:Hide()
     else
+        -- Recheck the relative level in case the settings panel was recreated.
+        local settingsButton = self.uiFrame and self.uiFrame.searchButton
+        if settingsButton and frame:GetFrameLevel() <= settingsButton:GetFrameLevel() then
+            frame:SetFrameLevel(settingsButton:GetFrameLevel() + 10)
+        end
         frame:Show()
         frame.queryInput:SetFocus()
     end

@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.0.0"
+ns.VERSION = "1.0.1"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -210,13 +210,38 @@ end
 --------------------------------------------------------------------------------------------
 
 function ns:InitDB()
-    ForeverWayfinderDB = ForeverWayfinderDB or {}
+    if type(ForeverWayfinderDB) ~= "table" then ForeverWayfinderDB = {} end
     local db = ForeverWayfinderDB
-
     self:CopyDefaults(db, self.defaults)
-    db.categories = db.categories or {}
+    if type(db.categories) ~= "table" then db.categories = {} end
     self:CopyDefaults(db.categories, self.defaultCategories)
 
+    local booleanKeys = { "enabled", "showWorldMap", "showMinimap", "showOnContinent",
+        "factionFilter", "hideMinimapButton" }
+    for i = 1, #booleanKeys do
+        local key = booleanKeys[i]
+        if type(db[key]) ~= "boolean" then db[key] = self.defaults[key] end
+    end
+    for key, defaultValue in pairs(self.defaultCategories) do
+        if type(db.categories[key]) ~= "boolean" then db.categories[key] = defaultValue end
+    end
+    if type(db.pinScale) ~= "number" or db.pinScale ~= db.pinScale
+        or db.pinScale == math.huge or db.pinScale == -math.huge then
+        db.pinScale = self.defaults.pinScale
+    else
+        db.pinScale = math.max(0.5, math.min(1.5, db.pinScale))
+    end
+    if type(db.minimapAngle) ~= "number" or db.minimapAngle ~= db.minimapAngle
+        or db.minimapAngle == math.huge or db.minimapAngle == -math.huge then
+        db.minimapAngle = self.defaults.minimapAngle
+    else
+        db.minimapAngle = db.minimapAngle % 360
+    end
+    if type(db.uiPosition) ~= "table" or type(db.uiPosition.point) ~= "string"
+        or type(db.uiPosition.x) ~= "number" or type(db.uiPosition.y) ~= "number" then
+        db.uiPosition = nil
+    end
+    if type(db.schemaVersion) ~= "number" or db.schemaVersion < 1 then db.schemaVersion = 1 end
     self.db = db
 end
 
@@ -336,6 +361,13 @@ local function HandleSlash(message)
         else
             ns:Print(("%d pins across %d maps from %d NPCs and %d objects."):format(
                 ns.stat.nodes, ns.stat.mapCount, ns.stat.npcs, ns.stat.objects))
+            ns:Print(("%d invalid records, %d invalid spawns, %d unresolved zones."):format(
+                ns.stat.invalidRecords or 0, ns.stat.invalidSpawns or 0, ns.stat.unresolvedZones or 0))
+            if ns.lastScan then
+                ns:Print(("Last scan: %s; enumeration %.3fs; duration %.3fs; NPC errors %d; object errors %d."):format(
+                    ns.lastScan.state or "unknown", ns.lastScan.enumerationDuration or 0,
+                    ns.lastScan.duration or 0, ns.stat.npcErrors or 0, ns.stat.objectErrors or 0))
+            end
         end
     else
         PrintHelp()
@@ -359,15 +391,20 @@ function ns:Init()
     local ok, reason = self:CheckDependencies()
     if not ok then
         self.blocked = reason
+        self.lastScan = { state = "blocked", reason = reason }
         self:Print("Disabled: " .. reason)
         if self.CreateUI then self:CreateUI() end
         return
     end
 
-    self.index = {}
-    self.descCache = {}
-    self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {} }
-    self.ready = false
+    if self.ResetIndex then
+        self:ResetIndex()
+    else
+        self.index = {}
+        self.descCache = {}
+        self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {} }
+        self.ready = false
+    end
 
     self:RegisterHandyNotes()
     if self.CreateUI then self:CreateUI() end

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+
+NPC discovery and search improvements.
+
+- Retain every NPC entry at shared map coordinates; no five-entry truncation.
+- Add case-insensitive search by NPC name or sub-name.
+- Add category and zone/map-name or map-ID filters.
+- Add a dedicated scrollable search window, slash command, and settings shortcut.
+- Left-click a result to select its map when the client exposes that API; right-click to set a TomTom waypoint when available.
+- Add regression coverage for shared-location retention, filtering, and result limits.
+
 ## 1.0.0
 
 Initial release.

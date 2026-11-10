@@ -163,6 +163,8 @@ function ns:ResetIndex()
         nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {},
         invalidRecords = 0, invalidSpawns = 0, unresolvedZones = 0,
         npcErrors = 0, objectErrors = 0,
+        invalidSpawnReasons = {}, invalidSpawnSamples = {},
+        unresolvedZoneSamples = {},
     }
     self.ready = false
 end
@@ -181,11 +183,56 @@ function ns:RecordScanError(kind, id, message)
     end
 end
 
+function ns:RecordInvalidSpawn(reason, entry, zoneID, spawn, mapID)
+    local stat = self.stat
+    stat.invalidSpawns = (stat.invalidSpawns or 0) + 1
+    stat.invalidSpawnReasons = stat.invalidSpawnReasons or {}
+    stat.invalidSpawnReasons[reason] = (stat.invalidSpawnReasons[reason] or 0) + 1
+    stat.invalidSpawnSamples = stat.invalidSpawnSamples or {}
+    if #stat.invalidSpawnSamples < 20 then
+        stat.invalidSpawnSamples[#stat.invalidSpawnSamples + 1] = {
+            reason = reason,
+            name = entry and entry.name or "Unknown",
+            id = entry and entry.id or "unknown",
+            zoneID = zoneID or "unknown",
+            mapID = mapID or "unknown",
+            x = type(spawn) == "table" and tostring(spawn[1]) or "n/a",
+            y = type(spawn) == "table" and tostring(spawn[2]) or "n/a",
+        }
+    end
+end
+
+function ns:RecordUnresolvedZone(entry, zoneID, list)
+    local stat = self.stat
+    stat.unresolvedZones = (stat.unresolvedZones or 0) + 1
+    stat.unresolvedZoneSamples = stat.unresolvedZoneSamples or {}
+    if #stat.unresolvedZoneSamples < 20 then
+        stat.unresolvedZoneSamples[#stat.unresolvedZoneSamples + 1] = {
+            name = entry and entry.name or "Unknown",
+            id = entry and entry.id or "unknown",
+            zoneID = tostring(zoneID),
+            spawnCount = type(list) == "table" and #list or 0,
+        }
+    end
+end
+
 function ns:AddSpawn(mapID, x, y, cats, entry)
     if not ns.ClassificationIsPositiveInteger(mapID)
         or not ns.ClassificationIsCoordinate(x) or not ns.ClassificationIsCoordinate(y)
         or type(cats) ~= "table" or type(entry) ~= "table" then
-        self.stat.invalidSpawns = (self.stat.invalidSpawns or 0) + 1
+        local reason = "invalid-map-id"
+        if not ns.ClassificationIsPositiveInteger(mapID) then
+            reason = "invalid-map-id"
+        elseif not ns.ClassificationIsCoordinate(x) then
+            reason = "invalid-x-coordinate"
+        elseif not ns.ClassificationIsCoordinate(y) then
+            reason = "invalid-y-coordinate"
+        elseif type(cats) ~= "table" then
+            reason = "invalid-categories"
+        else
+            reason = "invalid-entry"
+        end
+        self:RecordInvalidSpawn(reason, entry, nil, { x, y }, mapID)
         return false
     end
     local nx, ny = x / 100, y / 100
@@ -278,13 +325,20 @@ function ns:IndexNpc(id, bits)
             for index = 1, #list do
                 local spawn = list[index]
                 if type(spawn) == "table" then
-                    self:AddSpawn(mapID, spawn[1], spawn[2], cats, entry)
+                    local x, y = spawn[1], spawn[2]
+                    if not ns.ClassificationIsCoordinate(x) then
+                        self:RecordInvalidSpawn("invalid-x-coordinate", entry, zoneID, spawn, mapID)
+                    elseif not ns.ClassificationIsCoordinate(y) then
+                        self:RecordInvalidSpawn("invalid-y-coordinate", entry, zoneID, spawn, mapID)
+                    else
+                        self:AddSpawn(mapID, x, y, cats, entry)
+                    end
                 else
-                    self.stat.invalidSpawns = self.stat.invalidSpawns + 1
+                    self:RecordInvalidSpawn("spawn-is-not-a-table", entry, zoneID, spawn, mapID)
                 end
             end
         else
-            self.stat.unresolvedZones = self.stat.unresolvedZones + 1
+            self:RecordUnresolvedZone(entry, zoneID, list)
         end
     end
 end
@@ -317,13 +371,20 @@ function ns:IndexObject(id)
             for index = 1, #list do
                 local spawn = list[index]
                 if type(spawn) == "table" then
-                    self:AddSpawn(mapID, spawn[1], spawn[2], cats, entry)
+                    local x, y = spawn[1], spawn[2]
+                    if not ns.ClassificationIsCoordinate(x) then
+                        self:RecordInvalidSpawn("invalid-x-coordinate", entry, zoneID, spawn, mapID)
+                    elseif not ns.ClassificationIsCoordinate(y) then
+                        self:RecordInvalidSpawn("invalid-y-coordinate", entry, zoneID, spawn, mapID)
+                    else
+                        self:AddSpawn(mapID, x, y, cats, entry)
+                    end
                 else
-                    self.stat.invalidSpawns = self.stat.invalidSpawns + 1
+                    self:RecordInvalidSpawn("spawn-is-not-a-table", entry, zoneID, spawn, mapID)
                 end
             end
         else
-            self.stat.unresolvedZones = self.stat.unresolvedZones + 1
+            self:RecordUnresolvedZone(entry, zoneID, list)
         end
     end
 end

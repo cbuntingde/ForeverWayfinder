@@ -146,6 +146,70 @@ function ns:Print(message)
     DEFAULT_CHAT_FRAME:AddMessage(self.PREFIX .. " " .. tostring(message))
 end
 
+-- Show diagnostic output in a selectable edit box. WoW does not expose a general
+-- clipboard API to addons, but EditBox text can be copied with Ctrl+A / Ctrl+C.
+function ns:ShowCopyableReport(title, lines)
+    if not self.copyReportFrame then
+        local frame = CreateFrame("Frame", "ForeverWayfinderCopyReportFrame", UIParent, "BackdropTemplate")
+        frame:SetSize(760, 520)
+        frame:SetPoint("CENTER")
+        frame:SetFrameStrata("DIALOG")
+        frame:SetClampedToScreen(true)
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+        frame:SetBackdrop({
+            bgFile = "Interface\\\\" .. "Buttons\\\\" .. "WHITE8X8",
+            edgeFile = "Interface\\\\" .. "Tooltips\\\\" .. "UI-Tooltip-Border",
+            tile = true, tileSize = 16, edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+        })
+        frame:SetBackdropColor(0.04, 0.035, 0.025, 0.98)
+        frame:SetBackdropBorderColor(0.55, 0.44, 0.23, 1)
+
+        local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        heading:SetPoint("TOPLEFT", 18, -16)
+        heading:SetTextColor(0.95, 0.82, 0.48)
+        frame.heading = heading
+
+        local instructions = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        instructions:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -7)
+        instructions:SetText("Click the report, press Ctrl+A, then Ctrl+C to copy. Press Esc to close.")
+
+        local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", -4, -4)
+
+        local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 18, -76)
+        scroll:SetPoint("BOTTOMRIGHT", -38, 18)
+
+        local edit = CreateFrame("EditBox", nil, scroll)
+        edit:SetMultiLine(true)
+        edit:SetAutoFocus(false)
+        edit:SetFontObject(ChatFontNormal)
+        edit:SetWidth(690)
+        edit:SetTextInsets(6, 6, 6, 6)
+        edit:SetScript("OnEscapePressed", function() frame:Hide() end)
+        edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+        scroll:SetScrollChild(edit)
+
+        frame.editBox = edit
+        frame.scrollFrame = scroll
+        self.copyReportFrame = frame
+    end
+
+    local frame = self.copyReportFrame
+    frame.heading:SetText(title or "Forever Wayfinder Report")
+    local text = table.concat(lines or {}, "\\n")
+    frame.editBox:SetText(text)
+    frame.editBox:SetHeight(math.max(480, (select(2, text:gsub("\\n", "")) + 2) * 16))
+    frame:Show()
+    frame.editBox:SetFocus()
+    frame.editBox:HighlightText()
+end
+
 function ns:CopyDefaults(target, defaults)
     for key, value in pairs(defaults) do
         if target[key] == nil then
@@ -365,39 +429,47 @@ local function HandleSlash(message)
     elseif message == "search" then
         if ns.ToggleSearchUI then ns:ToggleSearchUI() end
     elseif message == "status" then
+        local lines = {}
+        local function ReportLine(message)
+            message = tostring(message)
+            lines[#lines + 1] = message
+            ns:Print(message)
+        end
+
         local scan = ns.scan
         if ns.blocked then
-            ns:Print("Disabled: " .. ns.blocked)
+            ReportLine("Disabled: " .. ns.blocked)
         elseif not ns.ready then
-            local text = "Indexing"
+            local status = "Indexing"
             if scan then
-                text = text .. (" (%d / %d NPCs"):format(scan.npcPos - 1, #scan.npcIds)
+                status = status .. (" (%d / %d NPCs"):format(scan.npcPos - 1, #scan.npcIds)
                 if scan.phase == "objects" then
-                    text = text .. (", %d / %d objects"):format(scan.objPos - 1, #scan.objIds)
+                    status = status .. (", %d / %d objects"):format(scan.objPos - 1, #scan.objIds)
                 end
-                text = text .. ")"
+                status = status .. ")"
             elseif ns.lastScan and ns.lastScan.state then
-                text = text .. " (last scan: " .. ns.lastScan.state .. ")"
+                status = status .. " (last scan: " .. ns.lastScan.state .. ")"
             end
-            ns:Print(text)
-            if ns.lastScan and ns.lastScan.reason then ns:Print(ns.lastScan.reason) end
+            ReportLine(status)
+            if ns.lastScan and ns.lastScan.reason then ReportLine(ns.lastScan.reason) end
         else
-            ns:Print(("%d pins across %d maps from %d NPCs and %d objects."):format(
+            ReportLine(("%d pins across %d maps from %d NPCs and %d objects."):format(
                 ns.stat.nodes, ns.stat.mapCount, ns.stat.npcs, ns.stat.objects))
-            ns:Print(("%d invalid records, %d invalid spawns, %d unresolved zones."):format(
+            ReportLine(("%d invalid records, %d invalid spawns, %d unresolved zones."):format(
                 ns.stat.invalidRecords or 0, ns.stat.invalidSpawns or 0, ns.stat.unresolvedZones or 0))
             if ns.lastScan then
-                ns:Print(("Last scan: %s; enumeration %.3fs; duration %.3fs; NPC errors %d; object errors %d."):format(
+                ReportLine(("Last scan: %s; enumeration %.3fs; duration %.3fs; NPC errors %d; object errors %d."):format(
                     ns.lastScan.state or "unknown", ns.lastScan.enumerationDuration or 0,
                     ns.lastScan.duration or 0, ns.stat.npcErrors or 0, ns.stat.objectErrors or 0))
-                ns:Print(("Max scan slice: %.4fs / %d records."):format(
+                ReportLine(("Max scan slice: %.4fs / %d records."):format(
                     ns.lastScan.maxSliceDuration or 0, ns.lastScan.maxSliceProcessed or 0))
                 for index, item in ipairs(ns.lastScan.errors or {}) do
-                    ns:Print(("Sample error %d (%s %s): %s"):format(
+                    ReportLine(("Sample error %d (%s %s): %s"):format(
                         index, item.kind, tostring(item.id), item.message))
                 end
             end
         end
+        ns:ShowCopyableReport("Forever Wayfinder - Status", lines)
     else
         PrintHelp()
     end

@@ -54,7 +54,7 @@ local entryA = { id = 10, name = "Vendor A" }
 local entryB = { id = 11, name = "Vendor B" }
 eq(ns:AddSpawn(100, 50, 25, { vendor = true }, entryA), true, "first spawn")
 eq(ns:AddSpawn(100, 50, 25, { repair = true }, entryB), true, "shared spawn")
-local shared = ns:GetNode and ns:GetNode(100, 5025000) or ns.index[100][5025000]
+local shared = ns:GetNode and ns:GetNode(100, 50002500) or ns.index[100][5025000]
 eq(#shared.entries, 2, "shared-location entries")
 eq(shared.cats.vendor, true, "first category merged")
 eq(shared.cats.repair, true, "second category merged")
@@ -74,7 +74,7 @@ NpcDB = {
 }
 ns:IndexNpc(101, fakeBits)
 eq(ns.stat.npcs, 1, "NPC indexed")
-eq(ns.index[100][4060000].cats.classTrainer, true, "NPC trainer category indexed")
+eq(ns.index[100][40006000].cats.classTrainer, true, "NPC trainer category indexed")
 ns:IndexNpc(102, fakeBits)
 eq(ns.stat.invalidRecords, 1, "malformed NPC flags counted")
 

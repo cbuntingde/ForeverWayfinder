@@ -161,8 +161,8 @@ function ns:ShowCopyableReport(title, lines)
         frame:SetScript("OnDragStart", frame.StartMoving)
         frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
         frame:SetBackdrop({
-            bgFile = "Interface\\\\" .. "Buttons\\\\" .. "WHITE8X8",
-            edgeFile = "Interface\\\\" .. "Tooltips\\\\" .. "UI-Tooltip-Border",
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
             tile = true, tileSize = 16, edgeSize = 16,
             insets = { left = 4, right = 4, top = 4, bottom = 4 },
         })

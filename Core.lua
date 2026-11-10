@@ -202,9 +202,9 @@ function ns:ShowCopyableReport(title, lines)
 
     local frame = self.copyReportFrame
     frame.heading:SetText(title or "Forever Wayfinder Report")
-    local text = table.concat(lines or {}, "\\n")
+    local text = table.concat(lines or {}, "\n")
     frame.editBox:SetText(text)
-    frame.editBox:SetHeight(math.max(480, (select(2, text:gsub("\\n", "")) + 2) * 16))
+    frame.editBox:SetHeight(math.max(480, (select(2, text:gsub("\n", "")) + 2) * 16))
     frame:Show()
     frame.editBox:SetFocus()
     frame.editBox:HighlightText()

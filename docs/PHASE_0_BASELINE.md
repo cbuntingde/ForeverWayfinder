@@ -33,7 +33,10 @@ The Phase 1 branch inserts `Classification.lua` immediately after `Core.lua`, be
 - Global saved-variable name: `ForeverWayfinderDB`.
 - Existing top-level preferences: `enabled`, `showWorldMap`, `showMinimap`, `showOnContinent`, `factionFilter`, `pinScale`, `minimapAngle`, `hideMinimapButton`, and `uiPosition`.
 - Category preference table: `categories`.
-- Existing defaults and all 19 category keys are defined in `Core.lua`.
+- Display defaults: master enabled, world map enabled, minimap enabled, continent pins disabled, faction filter enabled, pin scale 1.0, minimap angle 220 degrees, minimap button visible.
+- Category defaults enabled: vendor, repair, innkeeper, mailbox, auctioneer, banker, flight, stable, class trainer, profession trainer, portal trainer, other trainer, and spirit healer.
+- Category defaults disabled: weapon master, battle pet trainer, battlemaster, barber, transmogrifier, and tabard designer.
+- All 19 category keys and display defaults are defined in `Core.lua`.
 - Reset preserves `uiPosition` and `minimapAngle` by design.
 
 ## Public user entry points

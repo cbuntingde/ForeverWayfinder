@@ -92,4 +92,40 @@ eq(unsafe, nil, "sandbox blocks globals")
 local malformed, malformedError = zoneNS.DecodeZoneMapTable("not valid lua", "malformed")
 eq(malformed, nil, "malformed source")
 assert(type(malformedError) == "string", "decode error surfaced")
+
+-- Search covers all shared-location NPCs and applies deterministic text/category/zone filters.
+local searchChunk, searchError = loadfile("Search.lua")
+assert(searchChunk, searchError)
+searchChunk("ForeverWayfinder", ns)
+ns.categoryByKey = {
+    vendor = { name = "Vendors" },
+    repair = { name = "Repair" },
+    classTrainer = { name = "Class Trainers" },
+}
+ns.ready = true
+ns.index = {
+    [100] = {
+        [50002500] = shared,
+    },
+    [200] = {
+        [25007500] = {
+            x = 0.25, y = 0.75, cats = { classTrainer = true },
+            entries = {
+                { id = 20, name = "Ari", sub = "Mage Trainer", categories = { classTrainer = true } },
+            },
+        },
+    },
+}
+C_Map = { GetMapInfo = function(id) return { name = id == 100 and "Stormwind City" or "Ironforge" } end }
+local allShared = ns:SearchEntries("", "", "Stormwind")
+eq(#allShared, 2, "all shared NPCs searchable")
+local byCategory = ns:SearchEntries("", "repair", "")
+eq(#byCategory, 1, "category filter")
+eq(byCategory[1].entry.name, "Vendor B", "category result identity")
+local byZone = ns:SearchEntries("ari", "", "ironforge")
+eq(#byZone, 1, "case-insensitive zone and name filter")
+eq(byZone[1].mapID, 200, "zone map ID")
+local limited = ns:SearchEntries("", "", "map", 1)
+eq(#limited, 1, "search result limit")
+
 print("Forever Wayfinder tests passed.")

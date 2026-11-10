@@ -14,7 +14,10 @@ local function DecodeTable(source, chunkName)
         local compiled, result, reason = pcall(loadstring, source, "=" .. tostring(chunkName))
         if not compiled then return nil, tostring(result) end
         chunk, compileError = result, reason
-        if chunk and type(setfenv) == "function" then
+        if chunk then
+            if type(setfenv) ~= "function" then
+                return nil, "cannot sandbox the Lua chunk on this client"
+            end
             local sandboxed, sandboxError = pcall(setfenv, chunk, {})
             if not sandboxed then return nil, tostring(sandboxError) end
         end
@@ -48,6 +51,7 @@ local function ValidateMapping(mapping, label)
     end
     return valid, nil, invalid
 end
+ns.ValidateZoneMapMapping = ValidateMapping
 
 function ns:BuildZoneMap()
     local support = _G.LibQuestieDB and _G.LibQuestieDB.Support

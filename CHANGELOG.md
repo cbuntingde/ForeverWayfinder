@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Fix the search window's missing initial anchor so it opens centered and visibly.
+- Ensure the search window is layered above the settings panel and remains above it when reopened.
+- Add mocked WoW-frame regression coverage for search-window creation, visibility, focus, close, and reopen.
+- Make CI install Lua 5.1 from the runner's package manager and run syntax, core regression, and search UI lifecycle checks.
+- Document release readiness, feature boundaries, data limitations, and required in-game validation.
+
 ## 1.2.2
 
 NPC/object identity fix, font fallback, and minimap drag reliability.
@@ -29,7 +37,6 @@ Illustrated-journal interface and a trainer-classification correctness fix.
 - Search results render on parchment with serif NPC names and muted detail lines; filters use cream inputs with gold captions.
 - Fix trainers that ship without the TRAINER npcFlag (notably warlock Demon Trainers): an explicit "trainer" title now classifies them, so they appear as trainer pins instead of vendor-only. Verified against QuestieDB Forever data: four additional genuine trainers, no false positives.
 - Add regression coverage for the title-based trainer fallback and a guard against promoting non-trainer vendors.
-
 ## 1.1.0
 
 NPC discovery and search improvements.

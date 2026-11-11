@@ -1,5 +1,5 @@
 -- Lightweight WoW-frame mock for the search window lifecycle.
--- Run after tests/run.lua with Lua 5.1: lua tests/search_ui.lua
+-- Run standalone with Lua 5.1: lua tests/search_ui.lua
 local ns = {
     MEDIA = { white = "white", tooltipBorder = "border" },
     ready = false,

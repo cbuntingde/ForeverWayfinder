@@ -34,6 +34,7 @@
 | QuestieDB | Forever 1.0.14 (`X-Contract-Version: 4`, baked mode) | 16001 | `src/api.lua`, `src/read/shared.lua`, `src/support/data.lua`, `src/corrections/enum/expansions.lua` (Classic rules). |
 | HandyNotes | v1.6.32 | 16001 listed | `HandyNotes.lua` plugin documentation and pin callback wiring. |
 | TomTom | v4.4.1-release (optional) | 16001 listed | `core/waypoints.lua` `AddWaypoint`/`RemoveWaypoint`. |
+| Search-window CI status | CI rerun pending push | The rebased head re-runs syntax, both test suites, and the addon packaging check. |
 
 ## Automated checks
 
@@ -45,7 +46,7 @@ lua5.1 tests/run.lua
 lua5.1 tests/search_ui.lua
 ```
 
-The GitHub Actions workflow also builds and inspects a clean addon ZIP, then uploads it as the `ForeverWayfinder-addon` artifact. PR #3 run 84 completed successfully, including all syntax, test, package-build, and package-content steps. This still does not replace target-client testing.
+The GitHub Actions workflow also builds and inspects a clean addon ZIP, then uploads it as the `ForeverWayfinder-addon` artifact. PR #3 run 87 completed successfully, including all syntax, test, package-build, and package-content steps. This still does not replace target-client testing.
 
 ## In-game test setup
 

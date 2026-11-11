@@ -30,3 +30,24 @@ jobs:
         run: lua5.1 tests/run.lua
       - name: Run mocked WoW search UI lifecycle tests
         run: lua5.1 tests/search_ui.lua
+      - name: Build clean addon package
+        run: |
+          mkdir -p dist/ForeverWayfinder
+          cp ./*.lua ./*.toc dist/ForeverWayfinder/
+          cd dist
+          zip -r ForeverWayfinder.zip ForeverWayfinder
+      - name: Verify package contents
+        run: |
+          unzip -l dist/ForeverWayfinder.zip
+          unzip -Z1 dist/ForeverWayfinder.zip | grep -q '^ForeverWayfinder/ForeverWayfinder.toc$'
+          unzip -Z1 dist/ForeverWayfinder.zip | grep -q '^ForeverWayfinder/Search.lua$'
+          if unzip -Z1 dist/ForeverWayfinder.zip | grep -Eq '(^|/)(tests|docs|\.github)/'; then
+            echo "Development-only files were included in the addon package."
+            exit 1
+          fi
+      - name: Upload addon package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForeverWayfinder-addon
+          path: dist/ForeverWayfinder.zip
+          if-no-files-found: error

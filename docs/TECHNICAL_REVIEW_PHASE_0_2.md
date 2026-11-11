@@ -49,9 +49,9 @@ A new mocked frame lifecycle test verifies that the search frame is created, cen
 
 ## Current validation evidence
 
-- PR #3 workflow run 84 passed on head `8137b3948d286c1739801a3b524e5affa3856869`.
+- PR #3 workflow run 87 passed on head `8e487be8dc365281e6343624b7ccbe8399aa2d9a`.
 - The run passed Lua 5.1 syntax validation, pure-Lua regression tests, mocked search UI lifecycle tests, clean package creation, and package-content checks.
-- The generated `ForeverWayfinder-addon` artifact is available from [workflow run 84](https://github.com/cbuntingde/ForeverWayfinder/actions/runs/42944578426).
+- The generated `ForeverWayfinder-addon` artifact is available from [workflow run 87](https://github.com/cbuntingde/ForeverWayfinder/actions/runs/42944578426).
 - The user's in-game report confirms a complete scan with 1,616 coordinate nodes across 51 maps, 1,184 NPCs, 127 objects, zero invalid records/spawns, and zero scan errors. This is evidence for that tested setup only.
 - Search-window rendering, actual keyboard/mouse input, map navigation, dependency compatibility, faction coverage, and performance still require testing in the target client.
 

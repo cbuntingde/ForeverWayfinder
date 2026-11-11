@@ -70,7 +70,7 @@ MIT. See `LICENSE`.
 - `/fw map` reports the render gates, HandyNotes registration, the current map's node and icon counts, a per-category shown-versus-skipped breakdown, and icon-path validity.
 - Malformed QuestieDB records are skipped without aborting the full index build.
 - Zone-map payloads are decoded in a restricted environment and validated before use.
-- Pure Lua regression tests are in `tests/run.lua`. From the repository root, run `lua tests/run.lua` with a Lua 5.1-compatible interpreter.
+- Pure Lua regression tests are in `tests/run.lua`; mocked search-window lifecycle tests are in `tests/search_ui.lua`. From the repository root, run `lua5.1 tests/run.lua` and `lua5.1 tests/search_ui.lua`.
 - The standalone tests do not replace in-game testing against the declared client and supported QuestieDB/HandyNotes versions.
 
 ## Troubleshooting

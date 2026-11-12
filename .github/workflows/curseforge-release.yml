@@ -1,0 +1,71 @@
+name: CurseForge release
+
+# Uploads the addon to CurseForge every time a GitHub release is published.
+# No plugin or MCP server needed: the runner POSTs the zip straight to the
+# CurseForge Upload API.
+#
+# One-time setup (owner only, never commit secrets):
+#   1. Add the CurseForge API token as an Actions secret named
+#      CURSEFORGE_API_TOKEN (repo Settings > Secrets > Actions), or run:
+#        gh secret set CURSEFORGE_API_TOKEN --body 'paste-token-here'
+#   2. Nothing else: project 1788407 and game version 17053 (= 1.60.1,
+#      WoW Forever) are pinned below. If CurseForge ever lists a newer
+#      Forever build, re-resolve the id with an authenticated GET to
+#      https://wow.curseforge.com/api/game/versions and match name "1.60.x".
+#
+# Retry: if the upload step fails, use "Re-run failed jobs" on the run.
+# A GitHub pre-release uploads as CurseForge type "beta", else "release".
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  upload-curseforge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Build clean addon package
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/ForeverWayfinder
+          cp ./*.lua ./*.toc dist/ForeverWayfinder/
+          cd dist
+          zip -r "ForeverWayfinder-${version}.zip" ForeverWayfinder
+          unzip -Z1 "ForeverWayfinder-${version}.zip" | grep -q '^ForeverWayfinder/ForeverWayfinder.toc$'
+          echo "ZIP=dist/ForeverWayfinder-${version}.zip" >> "$GITHUB_ENV"
+      - name: Upload to CurseForge
+        env:
+          CF_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CF_API_TOKEN:-}" ]; then
+            echo "CURSEFORGE_API_TOKEN secret is not set. Add it under repo Settings > Secrets > Actions." >&2
+            exit 1
+          fi
+          if [ "${RELEASE_PRERELEASE:-false}" = "true" ]; then
+            release_type="beta"
+          else
+            release_type="release"
+          fi
+          printf '%s' "${RELEASE_BODY:-}" > /tmp/cf-changelog.md
+          changelog_json="$(jq --slurp --raw-input '.' < /tmp/cf-changelog.md)"
+          metadata="$(jq -c -n \
+            --arg name "${RELEASE_NAME:-${GITHUB_REF_NAME}}" \
+            --arg release_type "$release_type" \
+            --argjson changelog "$changelog_json" \
+            '{displayName: $name, releaseType: $release_type, changelog: $changelog, changelogType: "markdown", gameVersions: [17053]}')"
+          curl -sS --fail-with-body \
+            -H "X-Api-Token: $CF_API_TOKEN" \
+            -F "metadata=$metadata" \
+            -F "file=@${ZIP}" \
+            https://wow.curseforge.com/api/projects/1788407/upload-file

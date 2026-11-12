@@ -49,6 +49,9 @@ function ns:CreateMinimapButton()
     button:SetFrameStrata("MEDIUM")
     button:SetFrameLevel(Minimap:GetFrameLevel() + 8)
     button:SetClampedToScreen(true)
+    -- Buttons do not receive every click type by default. Drag starts on mouse-down, so
+    -- register both edges explicitly; OnMouseUp then decides between click and drag.
+    button:RegisterForClicks("AnyDown", "AnyUp")
 
     button.background = button:CreateTexture(nil, "BACKGROUND")
     button.background:SetTexture(ns.MEDIA.minimapBg)

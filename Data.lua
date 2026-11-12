@@ -161,7 +161,7 @@ function ns:ResetIndex()
     self.descCache = {}
     self.mapNameCache = {}
     self.stat = {
-        nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {},
+        nodes = 0, mapCount = 0, npcs = 0, objects = 0,
         invalidRecords = 0, invalidSpawns = 0, unavailablePositions = 0,
         unmappedAreas = 0, npcErrors = 0, objectErrors = 0,
         invalidSpawnReasons = {}, invalidSpawnSamples = {},
@@ -273,26 +273,17 @@ function ns:AddSpawn(mapID, x, y, cats, entry)
         node = { x = xi / 10000, y = yi / 10000, cats = {}, entries = {} }
         map[coord] = node
         self.stat.nodes = self.stat.nodes + 1
-        for key in pairs(cats) do
-            node.cats[key] = true
-            self.stat.catCount[key] = (self.stat.catCount[key] or 0) + 1
-        end
-    else
-        for key in pairs(cats) do
-            if not node.cats[key] then
-                node.cats[key] = true
-                self.stat.catCount[key] = (self.stat.catCount[key] or 0) + 1
-            end
-        end
     end
+    for key in pairs(cats) do node.cats[key] = true end
 
     if cats.vendor and entry.vendorIcon and not node.vendorIcon then
         node.vendorIcon = entry.vendorIcon
     end
 
+    -- NPC and object IDs are separate namespaces, so de-duplicate on kind plus ID.
     local entries = node.entries
     for index = 1, #entries do
-        if entries[index].id == entry.id then return end
+        if entries[index].kind == entry.kind and entries[index].id == entry.id then return end
     end
     entry.categories = entry.categories or {}
     for key in pairs(cats) do entry.categories[key] = true end
@@ -333,7 +324,7 @@ function ns:IndexNpc(id, bits)
 
     self.stat.npcs = self.stat.npcs + 1
     local entry = {
-        name = name, sub = subName, id = id,
+        kind = "npc", name = name, sub = subName, id = id,
         searchName = Lower(name), searchSub = Lower(subName),
     }
     if cats.vendor then
@@ -385,7 +376,7 @@ function ns:IndexObject(id)
     end
     self.stat.objects = self.stat.objects + 1
 
-    local entry = { name = name, sub = "Mailbox", id = id, searchName = Lower(name), searchSub = "mailbox" }
+    local entry = { kind = "object", name = name, sub = "Mailbox", id = id, searchName = Lower(name), searchSub = "mailbox" }
     local cats = { mailbox = true }
 
     for zoneID, list in pairs(spawns) do

@@ -68,6 +68,12 @@ eq(shared.cats.repair, true, "second category merged")
 eq(ns:AddSpawn(100, 101, 50, { vendor = true }, { id = 12 }), false, "invalid coordinate rejected")
 eq(ns.stat.invalidSpawns, 1, "invalid spawn counted")
 
+-- NPC and object IDs are separate namespaces: the same numeric ID at one coordinate must not collide.
+eq(ns:AddSpawn(100, 1, 1, { vendor = true }, { id = 7, kind = "npc", name = "Same ID NPC" }), true, "npc with id 7 added")
+eq(ns:AddSpawn(100, 1, 1, { mailbox = true }, { id = 7, kind = "object", name = "Same ID Box" }), true, "object with id 7 kept")
+eq(ns:AddSpawn(100, 1, 1, { vendor = true }, { id = 7, kind = "npc", name = "Duplicate" }), nil, "same kind and id de-duplicated")
+eq(#ns.index[100][1000100].entries, 2, "de-duplication is scoped to kind")
+
 for index = 1, 6 do
     eq(ns:AddSpawn(100, 50, 25, { vendor = true }, {
         id = 20 + index, name = "Extra NPC " .. index,
@@ -468,5 +474,22 @@ eq(#allSkipped, 1, "all-disabled map does not terminate traversal")
 eq(allSkipped[1].mapID, 400, "map after an all-disabled map reached")
 
 eq(#collect({}), 0, "empty map list yields nothing")
+
+------------------------------------------------------------------------------------------
+-- Packaging: every file the TOC loads must exist, so a renamed or forgotten module fails CI.
+------------------------------------------------------------------------------------------
+local toc = assert(io.open("ForeverWayfinder.toc", "r"))
+local listed = 0
+for line in toc:lines() do
+    local file = line:match("^%s*(.-)%s*$")
+    if file ~= "" and file:sub(1, 2) ~= "##" then
+        listed = listed + 1
+        local handle = io.open(file, "r")
+        assert(handle, "TOC lists a missing file: " .. file)
+        handle:close()
+    end
+end
+toc:close()
+assert(listed > 0, "TOC lists no files")
 
 print("Forever Wayfinder tests passed.")

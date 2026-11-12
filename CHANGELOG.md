@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.2
+
+NPC/object identity fix, font fallback, and minimap drag reliability.
+
+- Fix NPCs and objects sharing a numeric ID colliding at the same coordinates: entries are now de-duplicated on kind plus ID, so a mailbox is no longer dropped when an NPC reuses its ID and vice versa.
+- Add a font fallback for the journal theme: when the MORPHEUS font is unavailable the text falls back to the standard UI font instead of failing to render.
+- Fix minimap-button dragging: the button now registers both mouse-down and mouse-up clicks so drags are distinguished from clicks reliably.
+- Remove unused color, media, and index-statistics bookkeeping left over from earlier revisions.
+- Add regression coverage for NPC/object ID collisions and a packaging check that every file listed in the TOC exists.
+
 ## 1.2.1
 
 World-map pin rendering fix, enable-all default categories, and journal theme correction.

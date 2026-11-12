@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.2.1"
+ns.VERSION = "1.2.2"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -15,18 +15,10 @@ ns.Colors = {
     brightGold = { 1.00, 0.82, 0.00 },
     parchment = { 0.95, 0.92, 0.82 },
     muted = { 0.62, 0.59, 0.52 },
-    dark = { 0.05, 0.04, 0.03, 0.96 },
-    panel = { 0.09, 0.075, 0.055, 0.98 },
-    row = { 0.12, 0.10, 0.07, 0.55 },
-    hover = { 0.20, 0.16, 0.09, 0.85 },
-    frameBorder = { 0.55, 0.44, 0.23, 1 },
-    green = { 0.45, 0.78, 0.45 },
-    red = { 0.85, 0.35, 0.30 },
 }
 
 ns.MEDIA = {
     white = "Interface\\Buttons\\WHITE8X8",
-    tooltipBorder = "Interface\\Tooltips\\UI-Tooltip-Border",
     checkbox = "Interface\\Buttons\\UI-CheckBox-Check",
     sliderBg = "Interface\\Buttons\\UI-SliderBar-Background",
     sliderThumb = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
@@ -62,7 +54,9 @@ function Journal.Font(size, outline)
     local key = size .. ":" .. (outline or "")
     if not fontCache[key] then
         local font = CreateFont("ForeverWayfinderJournal" .. key:gsub("%W", "_"))
-        font:SetFont("Fonts\\MORPHEUS.TTF", size, outline or "")
+        if not font:SetFont("Fonts\\MORPHEUS.TTF", size, outline or "") then
+            font:SetFont(STANDARD_TEXT_FONT, size, outline or "")
+        end
         fontCache[key] = font
     end
     return fontCache[key]
@@ -436,10 +430,6 @@ function ns:CopyDefaults(target, defaults)
     end
 end
 
-function ns:IsCategoryEnabled(key)
-    return self.db and self.db.categories[key] == true
-end
-
 local DEFAULT_VENDOR_ICON = "Interface\\Icons\\INV_Misc_Bag_10"
 
 function ns:GetNodeIcon(node)
@@ -654,10 +644,10 @@ local function HandleSlash(message)
         ns:Print(ok and "Waypoint cleared." or reason)
     elseif message == "status" then
         local lines = {}
-        local function ReportLine(message)
-            message = tostring(message)
-            lines[#lines + 1] = message
-            ns:Print(message)
+        local function ReportLine(text)
+            text = tostring(text)
+            lines[#lines + 1] = text
+            ns:Print(text)
         end
 
         local scan = ns.scan
@@ -906,7 +896,7 @@ function ns:Init()
     else
         self.index = {}
         self.descCache = {}
-        self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {} }
+        self.stat = { nodes = 0, mapCount = 0, npcs = 0, objects = 0 }
         self.ready = false
     end
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.4
+
+Settings checkbox border reliability fix.
+
+- Fix settings checkboxes rendering without a visible border where backdrop templates are unavailable: the box now uses a solid cream fill with explicit 1px ink edges instead of a backdrop, with pixel snapping disabled so all four sides stay visible at fractional UI scales.
+
 ## 1.2.3
 
 Search-window layering fix, deterministic CI, and packaging verification.

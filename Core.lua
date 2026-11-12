@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.2.3"
+ns.VERSION = "1.2.4"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -176,17 +176,26 @@ function Journal.CheckRow(parent, x, y, width, height, label, iconPath, getter, 
     row.hover:SetAllPoints()
     row.hover:SetAlpha(0)
 
-    row.box = CreateFrame("Frame", nil, row, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    row.box = CreateFrame("Frame", nil, row)
     row.box:SetSize(15, 15)
     row.box:SetPoint("LEFT", 2, 0)
-    if row.box.SetBackdrop then
-        row.box:SetBackdrop({
-            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
-            insets = { left = 0, right = 0, top = 0, bottom = 0 },
-        })
-        row.box:SetBackdropColor(ns.Colors.cream[1], ns.Colors.cream[2], ns.Colors.cream[3], 1)
-        row.box:SetBackdropBorderColor(ns.Colors.ink[1], ns.Colors.ink[2], ns.Colors.ink[3], 0.8)
+    Solid(row.box, ns.Colors.cream):SetAllPoints()
+    -- Snapped 1px edges round to zero height at fractional UI scales; unsnapped texels keep all four sides visible.
+    local function BorderSide(from, to, horizontal)
+        local tex = Solid(row.box, ns.Colors.ink, "BORDER")
+        tex:SetAlpha(0.8)
+        tex:SetPoint(from, row.box, from)
+        tex:SetPoint(to, row.box, to)
+        if horizontal then tex:SetHeight(1) else tex:SetWidth(1) end
+        if tex.SetSnapToPixelGrid then
+            tex:SetSnapToPixelGrid(false)
+            tex:SetTexelSnappingBias(0)
+        end
     end
+    BorderSide("TOPLEFT", "TOPRIGHT", true)
+    BorderSide("BOTTOMLEFT", "BOTTOMRIGHT", true)
+    BorderSide("TOPLEFT", "BOTTOMLEFT", false)
+    BorderSide("TOPRIGHT", "BOTTOMRIGHT", false)
     row.mark = row.box:CreateTexture(nil, "ARTWORK")
     row.mark:SetTexture(ns.MEDIA.checkbox)
     row.mark:SetSize(14, 14)

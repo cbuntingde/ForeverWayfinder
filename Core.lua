@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.2.2"
+ns.VERSION = "1.2.3"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor

@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.3
+
+Search-window layering fix, deterministic CI, and packaging verification.
 
 - Fix the search window's missing initial anchor so it opens centered and visibly.
 - Ensure the search window is layered above the settings panel and remains above it when reopened.

@@ -2,6 +2,7 @@
 -- Run standalone with Lua 5.1: lua tests/search_ui.lua
 local ns = {
     MEDIA = { white = "white", tooltipBorder = "border" },
+    Colors = {},
     ready = false,
     index = {},
     categoryByKey = {},
@@ -23,6 +24,7 @@ local function mockObject()
     function object:SetText() end
     function object:SetFormattedText() end
     function object:SetTextColor() end
+    function object:SetTexture() end
     function object:SetColorTexture() end
     function object:SetVertexColor() end
     function object:SetAlpha() end
@@ -67,6 +69,17 @@ C_Timer = nil
 CreateFrame = function()
     return mockObject()
 end
+
+-- The journal UI builds theme widgets through ns.Journal. Stub the builders
+-- the search window uses; the mocks record anchoring and layering only.
+ns.Journal = {
+    Decorate = function() end,
+    Header = function() end,
+    Text = function() return mockObject() end,
+    Input = function() return mockObject() end,
+    Page = function() return mockObject() end,
+    Solid = function() return mockObject() end,
+}
 
 local chunk, err = loadfile("Search.lua")
 assert(chunk, err)

@@ -89,6 +89,9 @@ jobs:
           else
             release_type="release"
           fi
+          # Pipe metadata via stdin: curl scans inline -F content for
+          # ';type='/';filename='/';headers=' options, and any ';' in the
+          # changelog (e.g. "login; `/fw status`") corrupts the field.
           printf '%s' "$body" > /tmp/cf-changelog.md
           changelog_json="$(jq --slurp --raw-input '.' < /tmp/cf-changelog.md)"
           metadata="$(jq -c -n \
@@ -96,8 +99,8 @@ jobs:
             --arg release_type "$release_type" \
             --argjson changelog "$changelog_json" \
             '{displayName: $name, releaseType: $release_type, changelog: $changelog, changelogType: "markdown", gameVersions: [17053]}')"
-          curl -sS --fail-with-body \
+          printf '%s' "$metadata" | curl -sS --fail-with-body \
             -H "X-Api-Token: $CF_API_TOKEN" \
-            -F "metadata=$metadata" \
+            -F "metadata=<-" \
             -F "file=@${ZIP}" \
             https://wow.curseforge.com/api/projects/1788407/upload-file

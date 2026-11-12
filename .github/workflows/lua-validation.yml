@@ -16,6 +16,6 @@ jobs:
         with:
           luaVersion: "5.1"
       - name: Validate Lua syntax
-        run: luac -p Core.lua Classification.lua ZoneMap.lua Data.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua
+        run: luac -p Core.lua Classification.lua ZoneMap.lua Data.lua Waypoints.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua
       - name: Run pure Lua regression tests
         run: lua tests/run.lua

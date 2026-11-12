@@ -2,20 +2,52 @@ name: Lua validation
 
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "fix/**"]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lua-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lua-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Set up Lua 5.1
-        uses: leafo/gh-actions-lua@v10
-        with:
-          luaVersion: "5.1"
-      - name: Validate Lua syntax
-        run: luac -p Core.lua Classification.lua ZoneMap.lua Data.lua Waypoints.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua
+      - name: Install Lua 5.1
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lua5.1 zip unzip
+      - name: Validate Lua 5.1 syntax
+        run: luac5.1 -p Core.lua Classification.lua ZoneMap.lua Data.lua Waypoints.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua tests/search_ui.lua
       - name: Run pure Lua regression tests
-        run: lua tests/run.lua
+        run: lua5.1 tests/run.lua
+      - name: Run mocked WoW search UI lifecycle tests
+        run: lua5.1 tests/search_ui.lua
+      - name: Build clean addon package
+        run: |
+          mkdir -p dist/ForeverWayfinder
+          cp ./*.lua ./*.toc dist/ForeverWayfinder/
+          cd dist
+          zip -r ForeverWayfinder.zip ForeverWayfinder
+      - name: Verify package contents
+        run: |
+          unzip -l dist/ForeverWayfinder.zip
+          unzip -Z1 dist/ForeverWayfinder.zip | grep -q '^ForeverWayfinder/ForeverWayfinder.toc$'
+          unzip -Z1 dist/ForeverWayfinder.zip | grep -q '^ForeverWayfinder/Search.lua$'
+          if unzip -Z1 dist/ForeverWayfinder.zip | grep -Eq '(^|/)(tests|docs|\.github)/'; then
+            echo "Development-only files were included in the addon package."
+            exit 1
+          fi
+      - name: Upload addon package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ForeverWayfinder-addon
+          path: dist/ForeverWayfinder.zip
+          if-no-files-found: error

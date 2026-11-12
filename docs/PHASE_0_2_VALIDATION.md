@@ -1,7 +1,8 @@
 # Phase 0–2 validation plan
 
-**Scope:** Forever Wayfinder 1.1.0 implementation on PR #2  
-**Branch:** `feature/phase-0-1-foundation`  
+**Scope:** Phase 0–2 implementation plus the search UI release-hardening follow-up  
+**Baseline:** `main` commit `74431c2efcedbacd4766888156b0cb7351b7885c`  
+**Current review:** [PR #3](https://github.com/cbuntingde/ForeverWayfinder/pull/3) on `fix/search-window-layering`  
 **Purpose:** Separate automated regression checks from tests that require the actual WoW Forever client and installed dependencies.
 
 ## Current validation status
@@ -13,7 +14,8 @@
 | QuestieDB contract and real data | Contract verified against installed source; in-game data spot-checks pending | QuestieDB Forever 1.0.14, contract 4. `RequireContract`, `NpcDB`/`ObjectDB` `Get`/`GetAll`/`GetRaw`/`GetAllIds`, `Enum.npcFlags` (Classic rules), and `Support.Get("ZoneDB").private.areaIdToUiMapId(+Override)` all match the addon's usage. |
 | HandyNotes registration and map/minimap callbacks | Contract verified against installed source; in-game render pending | HandyNotes v1.6.32 (TOC lists interface 16001). `RegisterPluginDB`, `GetNodes2` iterator `(coord, mapID, icon, scale, alpha)`, and `UpdatePluginMap(nil, name)` match. Pins carry the iterator's mapID into `OnEnter`/`OnClick`, so continent-aggregated pins resolve to the correct child map. |
 | TomTom waypoint creation | Contract verified against installed source; in-game click pending | TomTom v4.4.1-release (TOC lists interface 16001). `AddWaypoint(mapID, x, y, opts)` takes 0–1 coordinates with `title`/`crazy`/`from`; `RemoveWaypoint(uid)` backs the new clear action. |
-| Search-window layout and input behavior | Not verified in game | UI frames and input scripts are not represented by the pure-Lua test harness. |
+| Search-window mocked lifecycle | Covered by `tests/search_ui.lua`; actual client still required | Mocked WoW frames cover creation, center anchor, strata/frame level, focus, close and reopen. Real rendering and input behavior remain in-game checks. |
+| Search-window layout and input behavior | Not verified in game | UI frames and input scripts are not represented by the pure-Lua test harness beyond the mocked lifecycle above. |
 | Large-dataset performance | Not profiled in game | Search now uses index-time normalized text, cached map names, and precomputed sort keys; enumeration and query latency still need measurement with representative data. |
 | Saved-variable upgrade/reset behavior | Validation and reset covered by automated tests; in-game persistence test required | Corrupted values, clamping, unknown-key preservation, and reset scope are regression-tested. A real client reload cycle is still required. |
 
@@ -32,17 +34,19 @@
 | QuestieDB | Forever 1.0.14 (`X-Contract-Version: 4`, baked mode) | 16001 | `src/api.lua`, `src/read/shared.lua`, `src/support/data.lua`, `src/corrections/enum/expansions.lua` (Classic rules). |
 | HandyNotes | v1.6.32 | 16001 listed | `HandyNotes.lua` plugin documentation and pin callback wiring. |
 | TomTom | v4.4.1-release (optional) | 16001 listed | `core/waypoints.lua` `AddWaypoint`/`RemoveWaypoint`. |
+| Search-window CI status | CI rerun pending push | The rebased head re-runs syntax, both test suites, and the addon packaging check. |
 
 ## Automated checks
 
 Run from the repository root with Lua 5.1:
 
 ```sh
-luac -p Core.lua Classification.lua ZoneMap.lua Data.lua Waypoints.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua
-lua tests/run.lua
+luac5.1 -p Core.lua Classification.lua ZoneMap.lua Data.lua Waypoints.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua tests/search_ui.lua
+lua5.1 tests/run.lua
+lua5.1 tests/search_ui.lua
 ```
 
-The GitHub Actions workflow runs both commands. Do not mark the branch fully validated until the latest head commit has a successful workflow run.
+The GitHub Actions workflow also builds and inspects a clean addon ZIP, then uploads it as the `ForeverWayfinder-addon` artifact. PR #3 run 87 completed successfully, including all syntax, test, package-build, and package-content steps. This still does not replace target-client testing.
 
 ## In-game test setup
 

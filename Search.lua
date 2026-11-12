@@ -131,9 +131,20 @@ function ns:CreateSearchUI()
 
     local frame = CreateFrame("Frame", "ForeverWayfinderSearchFrame", UIParent,
         BackdropTemplateMixin and "BackdropTemplate" or nil)
+
     frame:SetSize(SEARCH_WIDTH, SEARCH_HEIGHT)
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
+    -- Frames without an anchor can be created successfully but appear at an
+    -- unintended location. Always give the search window a visible initial anchor.
+    frame:SetPoint("CENTER", UIParent, "CENTER")
     frame:SetClampedToScreen(true)
+
+    -- The settings panel and search window share FULLSCREEN_DIALOG strata.
+    -- Set the level after the strata so the search window is above its opener.
+    local settingsButton = self.uiFrame and self.uiFrame.searchButton
+    if settingsButton then
+        frame:SetFrameLevel(settingsButton:GetFrameLevel() + 10)
+    end
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
@@ -318,6 +329,11 @@ function ns:ToggleSearchUI()
     if frame:IsShown() then
         frame:Hide()
     else
+        -- Recheck the relative level in case the settings panel was recreated.
+        local settingsButton = self.uiFrame and self.uiFrame.searchButton
+        if settingsButton and frame:GetFrameLevel() <= settingsButton:GetFrameLevel() then
+            frame:SetFrameLevel(settingsButton:GetFrameLevel() + 10)
+        end
         frame:Show()
         frame.queryInput:SetFocus()
     end

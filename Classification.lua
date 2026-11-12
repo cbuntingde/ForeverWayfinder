@@ -65,6 +65,10 @@ function ns.ClassificationCategoriesForNpc(flags, subName, bits, band)
     if has(bits.BARBER) then cats.barber = true end
     if has(bits.TRANSMOGRIFIER) then cats.transmog = true end
     if has(bits.TABARD_DESIGNER) then cats.tabard = true end
-    if has(bits.TRAINER) then cats[ns.ClassificationTrainerCategory(subName)] = true end
+    -- Some genuine trainers (e.g. warlock Demon Trainers) ship without the TRAINER
+    -- flag; an explicit "trainer" title is the only reliable signal for those.
+    if has(bits.TRAINER) or Contains(ns.ClassificationNormalizeText(subName), "trainer") then
+        cats[ns.ClassificationTrainerCategory(subName)] = true
+    end
     return cats
 end

@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.1.0"
+ns.VERSION = "1.2.1"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -34,6 +34,223 @@ ns.MEDIA = {
     minimapHighlight = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
     addonIcon = "Interface\\Icons\\INV_Misc_Map_01",
 }
+
+--------------------------------------------------------------------------------------------
+-- Journal theme: leather + gold book chrome, parchment pages, maroon controls.
+-- Shared by the settings and search windows so both read as one illustrated journal.
+--------------------------------------------------------------------------------------------
+
+ns.Colors.leather = { 0.16, 0.11, 0.07, 1 }
+ns.Colors.leatherDark = { 0.10, 0.07, 0.045, 1 }
+ns.Colors.page = { 0.90, 0.85, 0.71, 1 }
+ns.Colors.pageEdge = { 0.72, 0.63, 0.45, 1 }
+ns.Colors.pageHover = { 0.80, 0.72, 0.53, 1 }
+ns.Colors.ink = { 0.24, 0.17, 0.10 }
+ns.Colors.inkMuted = { 0.47, 0.40, 0.29 }
+ns.Colors.maroon = { 0.45, 0.10, 0.10, 1 }
+ns.Colors.maroonHover = { 0.60, 0.16, 0.14, 1 }
+ns.Colors.cream = { 0.86, 0.80, 0.63, 1 }
+ns.Colors.goldLine = { 0.72, 0.58, 0.30, 1 }
+
+ns.Journal = {}
+local Journal = ns.Journal
+local fontCache = {}
+
+-- Serif display face for the book feel; falls back to the client default if the
+-- legacy font alias is unavailable on a given client build.
+function Journal.Font(size, outline)
+    local key = size .. ":" .. (outline or "")
+    if not fontCache[key] then
+        local font = CreateFont("ForeverWayfinderJournal" .. key:gsub("%W", "_"))
+        font:SetFont("Fonts\\MORPHEUS.TTF", size, outline or "")
+        fontCache[key] = font
+    end
+    return fontCache[key]
+end
+
+function Journal.Text(parent, size, text, color, justify)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    fs:SetFontObject(Journal.Font(size))
+    fs:SetText(text or "")
+    if color then fs:SetTextColor(color[1], color[2], color[3]) end
+    if justify then fs:SetJustifyH(justify) end
+    return fs
+end
+
+local function Solid(frame, color, layer)
+    local tex = frame:CreateTexture(nil, layer or "BACKGROUND")
+    tex:SetColorTexture(color[1], color[2], color[3], color[4] or 1)
+    return tex
+end
+Journal.Solid = Solid
+
+-- Ornate leather cover with a double gold pinline. Uses only solid color textures
+-- so it renders identically on clients that lack the legacy dialog-frame art.
+function Journal.Decorate(frame)
+    if frame.SetBackdrop then
+        frame:SetBackdrop({
+            bgFile = ns.MEDIA.white,
+            edgeFile = ns.MEDIA.white,
+            edgeSize = 2,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        frame:SetBackdropColor(ns.Colors.leather[1], ns.Colors.leather[2], ns.Colors.leather[3], 1)
+        frame:SetBackdropBorderColor(ns.Colors.goldLine[1], ns.Colors.goldLine[2], ns.Colors.goldLine[3], 1)
+    end
+    local inner = CreateFrame("Frame", nil, frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    inner:SetPoint("TOPLEFT", 6, -6)
+    inner:SetPoint("BOTTOMRIGHT", -6, 6)
+    if inner.SetBackdrop then
+        inner:SetBackdrop({
+            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        inner:SetBackdropColor(0, 0, 0, 0)
+        inner:SetBackdropBorderColor(ns.Colors.goldLine[1], ns.Colors.goldLine[2], ns.Colors.goldLine[3], 0.6)
+    end
+end
+
+-- A parchment page inset within the cover.
+function Journal.Page(parent, left, top, right, bottom)
+    local page = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    page:SetPoint("TOPLEFT", left, top)
+    page:SetPoint("BOTTOMRIGHT", right, bottom)
+    if page.SetBackdrop then
+        page:SetBackdrop({
+            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        page:SetBackdropColor(ns.Colors.page[1], ns.Colors.page[2], ns.Colors.page[3], 1)
+        page:SetBackdropBorderColor(ns.Colors.pageEdge[1], ns.Colors.pageEdge[2], ns.Colors.pageEdge[3], 1)
+    end
+    return page
+end
+
+function Journal.Header(frame, height)
+    local band = Solid(frame, ns.Colors.leatherDark)
+    band:SetPoint("TOPLEFT", 10, -10)
+    band:SetPoint("TOPRIGHT", -10, -10)
+    band:SetHeight(height)
+    local rule = Solid(frame, ns.Colors.goldLine)
+    rule:SetPoint("TOPLEFT", band, "BOTTOMLEFT", 0, 0)
+    rule:SetPoint("TOPRIGHT", band, "BOTTOMRIGHT", 0, 0)
+    rule:SetHeight(1)
+    return band
+end
+
+function Journal.Button(parent, text, width, onClick)
+    local button = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    button:SetSize(width, 24)
+    if button.SetBackdrop then
+        button:SetBackdrop({
+            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        button:SetBackdropColor(ns.Colors.maroon[1], ns.Colors.maroon[2], ns.Colors.maroon[3], 1)
+        button:SetBackdropBorderColor(ns.Colors.goldLine[1], ns.Colors.goldLine[2], ns.Colors.goldLine[3], 1)
+    end
+    button.label = Journal.Text(button, 14, text, ns.Colors.gold)
+    button.label:SetPoint("CENTER")
+    button:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(ns.Colors.maroonHover[1], ns.Colors.maroonHover[2], ns.Colors.maroonHover[3], 1)
+        self.label:SetTextColor(ns.Colors.brightGold[1], ns.Colors.brightGold[2], ns.Colors.brightGold[3])
+    end)
+    button:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(ns.Colors.maroon[1], ns.Colors.maroon[2], ns.Colors.maroon[3], 1)
+        self.label:SetTextColor(ns.Colors.gold[1], ns.Colors.gold[2], ns.Colors.gold[3])
+    end)
+    button:SetScript("OnClick", onClick)
+    return button
+end
+
+function Journal.Section(parent, x, y, width, title)
+    local header = Journal.Text(parent, 15, title:upper(), ns.Colors.ink)
+    header:SetPoint("TOPLEFT", x, y)
+    local rule = Solid(parent, ns.Colors.inkMuted)
+    rule:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -3)
+    rule:SetSize(width, 1)
+    rule:SetAlpha(0.45)
+    return header
+end
+
+function Journal.CheckRow(parent, x, y, width, height, label, iconPath, getter, setter)
+    local row = CreateFrame("Button", nil, parent)
+    row:SetSize(width, height)
+    row:SetPoint("TOPLEFT", x, y)
+
+    row.hover = Solid(row, ns.Colors.pageHover)
+    row.hover:SetAllPoints()
+    row.hover:SetAlpha(0)
+
+    row.box = CreateFrame("Frame", nil, row, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    row.box:SetSize(15, 15)
+    row.box:SetPoint("LEFT", 2, 0)
+    if row.box.SetBackdrop then
+        row.box:SetBackdrop({
+            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        row.box:SetBackdropColor(ns.Colors.cream[1], ns.Colors.cream[2], ns.Colors.cream[3], 1)
+        row.box:SetBackdropBorderColor(ns.Colors.ink[1], ns.Colors.ink[2], ns.Colors.ink[3], 0.8)
+    end
+    row.mark = row.box:CreateTexture(nil, "ARTWORK")
+    row.mark:SetTexture(ns.MEDIA.checkbox)
+    row.mark:SetSize(14, 14)
+    row.mark:SetPoint("CENTER")
+    row.mark:SetVertexColor(ns.Colors.maroon[1], ns.Colors.maroon[2], ns.Colors.maroon[3])
+
+    local textOffset = 24
+    if iconPath then
+        row.icon = row:CreateTexture(nil, "ARTWORK")
+        row.icon:SetTexture(iconPath)
+        row.icon:SetSize(17, 17)
+        row.icon:SetPoint("LEFT", 24, 0)
+        textOffset = 46
+    end
+
+    row.label = Journal.Text(row, 14, label, ns.Colors.ink, "LEFT")
+    row.label:SetPoint("LEFT", textOffset, 0)
+    row.label:SetWidth(width - textOffset - 4)
+
+    function row:Refresh()
+        local enabled = getter()
+        self.mark:SetShown(enabled)
+        if enabled then
+            self.label:SetTextColor(ns.Colors.ink[1], ns.Colors.ink[2], ns.Colors.ink[3])
+        else
+            self.label:SetTextColor(ns.Colors.inkMuted[1], ns.Colors.inkMuted[2], ns.Colors.inkMuted[3])
+        end
+    end
+
+    row:SetScript("OnEnter", function(self) self.hover:SetAlpha(0.6) end)
+    row:SetScript("OnLeave", function(self) self.hover:SetAlpha(0) end)
+    row:SetScript("OnClick", function(self)
+        setter(not getter())
+        self:Refresh()
+        ns:Refresh()
+    end)
+    row:Refresh()
+    return row
+end
+
+function Journal.Input(parent, width, height)
+    local input = CreateFrame("EditBox", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    input:SetAutoFocus(false)
+    input:SetSize(width, height)
+    if input.SetBackdrop then
+        input:SetBackdrop({
+            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+        input:SetBackdropColor(ns.Colors.cream[1], ns.Colors.cream[2], ns.Colors.cream[3], 1)
+        input:SetBackdropBorderColor(ns.Colors.ink[1], ns.Colors.ink[2], ns.Colors.ink[3], 0.7)
+    end
+    input:SetFontObject(Journal.Font(14))
+    input:SetTextColor(ns.Colors.ink[1], ns.Colors.ink[2], ns.Colors.ink[3])
+    input:SetTextInsets(8, 8, 0, 0)
+    input:SetMaxLetters(80)
+    return input
+end
 
 --------------------------------------------------------------------------------------------
 -- Categories
@@ -99,14 +316,14 @@ ns.defaultCategories = {
     classTrainer = true,
     profession = true,
     portal = true,
-    weapon = false,
-    pet = false,
+    weapon = true,
+    pet = true,
     otherTrainer = true,
     spirit = true,
-    battlemaster = false,
-    barber = false,
-    transmog = false,
-    tabard = false,
+    battlemaster = true,
+    barber = true,
+    transmog = true,
+    tabard = true,
 }
 
 ns.defaults = {
@@ -150,7 +367,8 @@ end
 -- clipboard API to addons, but EditBox text can be copied with Ctrl+A / Ctrl+C.
 function ns:ShowCopyableReport(title, lines)
     if not self.copyReportFrame then
-        local frame = CreateFrame("Frame", "ForeverWayfinderCopyReportFrame", UIParent, "BackdropTemplate")
+        local frame = CreateFrame("Frame", "ForeverWayfinderCopyReportFrame", UIParent,
+            BackdropTemplateMixin and "BackdropTemplate" or nil)
         frame:SetSize(760, 520)
         frame:SetPoint("CENTER")
         frame:SetFrameStrata("DIALOG")
@@ -333,6 +551,7 @@ function ns:ResetSettings()
     self:CopyDefaults(db, self.defaults)
     db.categories = {}
     self:CopyDefaults(db.categories, self.defaultCategories)
+    db.schemaVersion = 1
     self:Refresh()
     if self.UpdateUI then self:UpdateUI() end
     self:Print("Settings reset to defaults.")
@@ -405,7 +624,9 @@ local function PrintHelp()
     ns:Print("  /fw refresh - rebuild the NPC index")
     ns:Print("  /fw reset - restore default settings")
     ns:Print("  /fw search - search NPCs by name, category, or zone")
+    ns:Print("  /fw clear - clear the last Forever Wayfinder waypoint")
     ns:Print("  /fw status - show index statistics")
+    ns:Print("  /fw map - diagnose map pins for the current map")
 end
 
 local function HandleSlash(message)
@@ -428,6 +649,9 @@ local function HandleSlash(message)
         ns:ResetSettings()
     elseif message == "search" then
         if ns.ToggleSearchUI then ns:ToggleSearchUI() end
+    elseif message == "clear" then
+        local ok, reason = ns.Waypoints:ClearLast()
+        ns:Print(ok and "Waypoint cleared." or reason)
     elseif message == "status" then
         local lines = {}
         local function ReportLine(message)
@@ -487,6 +711,168 @@ local function HandleSlash(message)
             end
         end
         ns:ShowCopyableReport("Forever Wayfinder - Status", lines)
+    elseif message == "map" then
+        local lines = {}
+        local function ReportLine(msg)
+            msg = tostring(msg)
+            lines[#lines + 1] = msg
+            ns:Print(msg)
+        end
+        local function Safe(label, fn)
+            local ok, a = pcall(fn)
+            if ok then return a end
+            ReportLine(label .. " ERROR: " .. tostring(a))
+            return nil
+        end
+
+        ReportLine(("ready=%s enabled=%s showWorldMap=%s showMinimap=%s showOnContinent=%s"):format(
+            tostring(ns.ready), tostring(ns.db and ns.db.enabled), tostring(ns.db and ns.db.showWorldMap),
+            tostring(ns.db and ns.db.showMinimap), tostring(ns.db and ns.db.showOnContinent)))
+        ReportLine(("blocked=%s registered=%s plugin=%s"):format(
+            tostring(ns.blocked), tostring(ns.registered), tostring(ns.PLUGIN)))
+        if ns.lastScan then ReportLine("lastScan=" .. tostring(ns.lastScan.state)) end
+
+        if HandyNotes then
+            ReportLine(("HandyNotes enabled=%s pluginRegistered=%s"):format(
+                tostring(HandyNotes.IsEnabled and HandyNotes:IsEnabled()),
+                tostring(HandyNotes.plugins and HandyNotes.plugins[ns.PLUGIN] ~= nil)))
+            local enabledPlugins = HandyNotes.db and HandyNotes.db.profile and HandyNotes.db.profile.enabledPlugins
+            if enabledPlugins then
+                ReportLine("enabledPlugins[plugin]=" .. tostring(enabledPlugins[ns.PLUGIN]))
+            end
+            local provider = HandyNotes.WorldMapDataProvider
+            if provider and WorldMapFrame and WorldMapFrame.dataProviders then
+                ReportLine("worldMapProviderRegistered=" .. tostring(WorldMapFrame.dataProviders[provider] ~= nil))
+            end
+        else
+            ReportLine("HandyNotes missing")
+        end
+
+        local wmID = WorldMapFrame and WorldMapFrame.GetMapID and
+            Safe("WorldMapFrame:GetMapID", function() return WorldMapFrame:GetMapID() end)
+        local playerID = Safe("GetBestMapForUnit", function() return C_Map.GetBestMapForUnit("player") end)
+        ReportLine(("worldMapShown=%s worldMapID=%s playerMapID=%s"):format(
+            tostring(WorldMapFrame and WorldMapFrame:IsShown()), tostring(wmID), tostring(playerID)))
+
+        local target = wmID or playerID
+        if target then
+            local info = Safe("GetMapInfo", function() return C_Map.GetMapInfo(target) end)
+            if info then
+                ReportLine(("target map %s: name=%s type=%s parent=%s"):format(
+                    tostring(target), tostring(info.name), tostring(info.mapType), tostring(info.parentMapID)))
+            end
+            local nodeCount = 0
+            if ns.index and ns.index[target] then
+                for _ in pairs(ns.index[target]) do nodeCount = nodeCount + 1 end
+            end
+            ReportLine(("index[%s] nodes=%d"):format(tostring(target), nodeCount))
+
+            local maps = Safe("GetMapsFor", function() return ns:GetMapsFor(target, false) end)
+            if maps then
+                ReportLine(("GetMapsFor -> %d maps: %s"):format(#maps, table.concat(maps, ",")))
+                local iterOk, iter, state, var = pcall(ns.MakeNodeIterator, ns, maps)
+                if not iterOk then
+                    ReportLine("MakeNodeIterator ERROR: " .. tostring(iter))
+                else
+                    local yielded, samples = 0, {}
+                    local loopOk, loopErr = pcall(function()
+                        for coord, mapID, icon in iter, state, var do
+                            yielded = yielded + 1
+                            if #samples < 5 then
+                                samples[#samples + 1] = ("coord=%s map=%s icon=%s"):format(
+                                    tostring(coord), tostring(mapID), tostring(icon))
+                            end
+                            if yielded >= 500 then break end
+                        end
+                    end)
+                    ReportLine(("iterator yielded=%d%s"):format(
+                        yielded, (not loopOk) and (" ERROR: " .. tostring(loopErr)) or ""))
+                    for _, s in ipairs(samples) do ReportLine("  " .. s) end
+                end
+            end
+        end
+
+        if ns.db and ns.db.categories then
+            local enabledCats = {}
+            for key, value in pairs(ns.db.categories) do
+                if value == true then enabledCats[#enabledCats + 1] = key end
+            end
+            table.sort(enabledCats)
+            ReportLine("enabled categories: " .. table.concat(enabledCats, ","))
+        end
+        if target and ns.index and ns.index[target] then
+            local catTally, skippedTally = {}, {}
+            local total, withIcon, skipped = 0, 0, 0
+            local skippedSamples = {}
+            for _, node in pairs(ns.index[target]) do
+                total = total + 1
+                for key in pairs(node.cats or {}) do
+                    catTally[key] = (catTally[key] or 0) + 1
+                end
+                if ns:GetNodeIcon(node) then
+                    withIcon = withIcon + 1
+                else
+                    skipped = skipped + 1
+                    local keys = {}
+                    for key in pairs(node.cats or {}) do
+                        keys[#keys + 1] = key
+                        skippedTally[key] = (skippedTally[key] or 0) + 1
+                    end
+                    if #skippedSamples < 6 then
+                        local first = node.entries and node.entries[1]
+                        skippedSamples[#skippedSamples + 1] = ("%s cats=[%s]"):format(
+                            (first and first.name) or "?", table.concat(keys, ","))
+                    end
+                end
+            end
+            ReportLine(("target nodes: total=%d withIcon=%d skipped=%d"):format(total, withIcon, skipped))
+            local catParts = {}
+            for key, count in pairs(catTally) do catParts[#catParts + 1] = key .. "=" .. count end
+            table.sort(catParts)
+            ReportLine("node cats: " .. table.concat(catParts, " "))
+            local skipParts = {}
+            for key, count in pairs(skippedTally) do skipParts[#skipParts + 1] = key .. "=" .. count end
+            table.sort(skipParts)
+            ReportLine("skipped-node cats: " .. table.concat(skipParts, " "))
+            for _, s in ipairs(skippedSamples) do ReportLine("  skipped: " .. s) end
+        end
+
+        local sampleMaps = {}
+        if ns.index then
+            for mapID in pairs(ns.index) do
+                sampleMaps[#sampleMaps + 1] = mapID
+                if #sampleMaps >= 25 then break end
+            end
+            table.sort(sampleMaps)
+        end
+        ReportLine("index mapIDs sample: " .. table.concat(sampleMaps, ","))
+
+        local tester = CreateFrame("Frame")
+        local tex = tester:CreateTexture(nil, "ARTWORK")
+        local badIcons, seen = {}, {}
+        for _, category in ipairs(ns.categoryList) do
+            local icon = category.icon
+            if icon and not seen[icon] then
+                seen[icon] = true
+                if not tex:SetTexture(icon) then
+                    badIcons[#badIcons + 1] = category.key .. "=" .. icon
+                end
+            end
+        end
+        if not tex:SetTexture("Interface\\Icons\\INV_Misc_Bag_10") then
+            badIcons[#badIcons + 1] = "defaultVendor=Interface\\Icons\\INV_Misc_Bag_10"
+        end
+        tester:Hide()
+        ReportLine(("icon check: %d invalid%s"):format(
+            #badIcons, #badIcons > 0 and (": " .. table.concat(badIcons, "; ")) or ""))
+
+        if HandyNotes and HandyNotes.WorldMapDataProvider and WorldMapFrame and WorldMapFrame:IsShown() then
+            local ok, err = pcall(HandyNotes.WorldMapDataProvider.RefreshPlugin,
+                HandyNotes.WorldMapDataProvider, ns.PLUGIN)
+            ReportLine("RefreshPlugin direct: " .. (ok and "ok" or ("ERROR: " .. tostring(err))))
+        end
+
+        ns:ShowCopyableReport("Forever Wayfinder - Map", lines)
     else
         PrintHelp()
     end

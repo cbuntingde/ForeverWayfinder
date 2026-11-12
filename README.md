@@ -6,10 +6,14 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 
 ![Forever Wayfinder settings panel](docs/screenshot-settings.png)
 
+![Forever Wayfinder search window](docs/screenshot-search.png)
+
 ## Features
 
+- Illustrated journal interface: parchment pages, leather-and-gold book chrome, serif headings and maroon-and-gold controls across the settings and search windows.
 - Vendors drawn with an icon for what they actually sell: food and drink, trade and profession supplies, reagents, poisons, ammunition, weapons, armor, bags, tabards and mounts.
-- Inkeepers, repair vendors, auctioneers, bankers, flight masters, stable masters, mailboxes, class and profession trainers, weapon masters, portal trainers, spirit healers, battlemasters, barbers, transmogrifiers and tabard designers.
+- Innkeepers, repair vendors, auctioneers, bankers, flight masters, stable masters, mailboxes, class, profession, portal, battle-pet and other trainers, weapon masters, spirit healers, battlemasters, barbers, transmogrifiers and tabard designers.
+- All 19 categories are enabled by default, so a fresh install shows every service; uncheck any in settings to hide those pins.
 - World map and minimap pins, each switchable.
 - Optional continent-level pins that roll every zone up onto the continent map.
 - Optional faction filter that hides services belonging to the opposite faction.
@@ -26,6 +30,8 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 - [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) (required)
 - [TomTom](https://www.curseforge.com/wow/addons/tomtom) (optional, for waypoints)
 
+Dependency contracts are verified against QuestieDB Forever 1.0.14 (contract 4), HandyNotes v1.6.32, and TomTom v4.4.1-release.
+
 ## Installation
 
 1. Close the game.
@@ -36,12 +42,14 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 
 ## Usage
 
-- `/fw` or `/foreverwayfinder` opens the settings panel.
+- `/fw` or `/foreverwayfinder` opens or closes the settings panel.
 - `/fw on` / `/fw off` enables or disables all pins.
 - `/fw refresh` rebuilds the NPC index.
 - `/fw reset` restores default settings.
 - `/fw search` opens NPC search; filter by name, category, zone name, or map ID.
+- `/fw clear` removes the last waypoint set by Forever Wayfinder (requires TomTom).
 - `/fw status` prints index statistics.
+- `/fw map` diagnoses map pins for the current map and refreshes the open world map.
 - Left-click the minimap button to open the panel, right-click it to toggle minimap pins, drag it to move it around the minimap.
 - Hover a pin for the NPC names and coordinates. Right-click it to set a TomTom waypoint.
 - In search results, left-click to open/select the result's map when supported by the client; right-click to set a TomTom waypoint.
@@ -59,6 +67,7 @@ MIT. See `LICENSE`.
 ## Diagnostics and development tests
 
 - `/fw status` reports index totals, invalid records/spawns, unresolved zone mappings, scan timing and record errors.
+- `/fw map` reports the render gates, HandyNotes registration, the current map's node and icon counts, a per-category shown-versus-skipped breakdown, and icon-path validity.
 - Malformed QuestieDB records are skipped without aborting the full index build.
 - Zone-map payloads are decoded in a restricted environment and validated before use.
 - Pure Lua regression tests are in `tests/run.lua`. From the repository root, run `lua tests/run.lua` with a Lua 5.1-compatible interpreter.

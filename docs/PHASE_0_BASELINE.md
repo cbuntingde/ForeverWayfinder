@@ -10,10 +10,10 @@ This document records facts visible in the repository. It does not claim unverif
 
 | Component | Baseline contract | Status |
 |---|---|---|
-| WoW client | TOC declares Interface 16001; addon uses the modern `C_Map` API and `C_Timer.NewTicker`. | Declared target; in-game verification still required. |
-| QuestieDB | Required TOC dependency; checks `LibQuestieDB.RequireContract(4)`; expects `NpcDB`, `ObjectDB`, `LibQuestieDB.Enum.npcFlags`, and `LibQuestieDB.Support.Get("ZoneDB")`. | API contract is explicit; minimum addon release is not pinned. |
-| HandyNotes | Required TOC dependency; expects `HandyNotes.RegisterPluginDB` and optionally calls `HandyNotes.UpdatePluginMap`. | API feature-detected; minimum addon release is not pinned. |
-| TomTom | Optional TOC dependency; checks `TomTom.AddWaypoint`. | Optional integration; no minimum version is pinned. |
+| WoW client | TOC declares Interface 16001; addon uses the modern `C_Map` API and `C_Timer.NewTicker`. | Verified 2026-11-11: installed client runs a modern FrameXML; the addon has loaded and saved variables on it. |
+| QuestieDB | Required TOC dependency; checks `LibQuestieDB.RequireContract(4)`; expects `NpcDB`, `ObjectDB`, `LibQuestieDB.Enum.npcFlags`, and `LibQuestieDB.Support.Get("ZoneDB")`. | Contract verified against installed QuestieDB Forever 1.0.14 (contract 4, Classic rules). |
+| HandyNotes | Required TOC dependency; expects `HandyNotes.RegisterPluginDB` and optionally calls `HandyNotes.UpdatePluginMap`. | Contract verified against installed HandyNotes v1.6.32 (TOC lists interface 16001). |
+| TomTom | Optional TOC dependency; checks `TomTom.AddWaypoint`. | Contract verified against installed TomTom v4.4.1-release; accessed only through `Waypoints.lua`. |
 
 ## Load order
 
@@ -54,6 +54,34 @@ The Phase 1 branch inserts `Classification.lua` immediately after `Core.lua`, be
 - Area IDs are translated to UI map IDs using QuestieDB ZoneDB support data.
 - Coordinates are normalized from 0–100 percentages into the addon's packed integer coordinate key.
 - Multiple records at one coordinate are represented by a single pin; the baseline tooltip displays up to five entries plus a count of additional entries.
+
+## Normalized record contract
+
+The indexer produces two compact record shapes. Search and pins consume only these.
+
+**Entry** (one per distinct NPC/object ID at a coordinate; shared by reference across nodes):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | positive integer | QuestieDB NPC or object ID. |
+| `name` | string | Display name (validated non-empty). |
+| `sub` | string or nil | Display subname; objects use `"Mailbox"`. |
+| `searchName` | string | Index-time normalized `name` for case-insensitive search. |
+| `searchSub` | string | Index-time normalized `sub`. |
+| `categories` | set of category keys | Union of the record's categories across all spawns. |
+| `vendorIcon` | string or nil | Inferred vendor-stock icon; a hint, not inventory proof. |
+
+**Node** (one per map ID + packed coordinate):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `x`, `y` | number 0–1 | Normalized map coordinates (rounded to 4 decimal places). |
+| `cats` | set of category keys | Union of member entry categories. |
+| `entries` | array of entries | Every distinct ID at this coordinate; deduplicated by `id`. |
+| `vendorIcon` | string or nil | First vendor-stock icon contributed by a member. |
+
+Map IDs are positive integers; coordinates are validated to 0–100 before packing.
+The packed coordinate key is `floor(x*10000+0.5)*10000 + floor(y*10000+0.5)`.
 
 ## Compatibility gaps not resolved by repository evidence
 

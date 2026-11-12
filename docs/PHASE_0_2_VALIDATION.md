@@ -8,21 +8,37 @@
 
 | Area | Status | Evidence / limitation |
 |---|---|---|
-| Lua 5.1 syntax | Passed on the latest previously checked commit; rerun required for this review patch | GitHub Actions run 42 passed before the review fixes. Search.lua is now explicitly included in the syntax command. |
-| Pure-Lua regression suite | Passed on the latest previously checked commit; rerun required for this review patch | GitHub Actions run 42 passed before the exact-map-ID regression test was added. |
-| QuestieDB contract and real data | Not verified in game | Requires the target client and actual QuestieDB release. |
-| HandyNotes registration and map/minimap callbacks | Not verified in game | Requires the target client and HandyNotes. |
-| TomTom waypoint creation | Not verified in game | Requires TomTom installed and its live API. |
+| Lua 5.1 syntax | Passed locally 2026-11-11 (`luac5.1 -p`, all nine modules + tests); CI rerun pending push | Waypoints.lua is now explicitly included in the syntax command. |
+| Pure-Lua regression suite | Passed locally 2026-11-11 (`lua5.1 tests/run.lua`), expanded coverage | Adds faction filtering, scan lifecycle (completion, isolation, idempotent rebuild, restart generation safety, enumeration-failure recovery), saved-variable validation/reset, waypoint provider, and zone-override precedence tests. |
+| QuestieDB contract and real data | Contract verified against installed source; in-game data spot-checks pending | QuestieDB Forever 1.0.14, contract 4. `RequireContract`, `NpcDB`/`ObjectDB` `Get`/`GetAll`/`GetRaw`/`GetAllIds`, `Enum.npcFlags` (Classic rules), and `Support.Get("ZoneDB").private.areaIdToUiMapId(+Override)` all match the addon's usage. |
+| HandyNotes registration and map/minimap callbacks | Contract verified against installed source; in-game render pending | HandyNotes v1.6.32 (TOC lists interface 16001). `RegisterPluginDB`, `GetNodes2` iterator `(coord, mapID, icon, scale, alpha)`, and `UpdatePluginMap(nil, name)` match. Pins carry the iterator's mapID into `OnEnter`/`OnClick`, so continent-aggregated pins resolve to the correct child map. |
+| TomTom waypoint creation | Contract verified against installed source; in-game click pending | TomTom v4.4.1-release (TOC lists interface 16001). `AddWaypoint(mapID, x, y, opts)` takes 0–1 coordinates with `title`/`crazy`/`from`; `RemoveWaypoint(uid)` backs the new clear action. |
 | Search-window layout and input behavior | Not verified in game | UI frames and input scripts are not represented by the pure-Lua test harness. |
-| Large-dataset performance | Not profiled in game | Enumeration and search latency must be measured with representative data. |
-| Saved-variable upgrade/reset behavior | Partially reviewed; in-game persistence test required | Requires a real client profile and reload cycle. |
+| Large-dataset performance | Not profiled in game | Search now uses index-time normalized text, cached map names, and precomputed sort keys; enumeration and query latency still need measurement with representative data. |
+| Saved-variable upgrade/reset behavior | Validation and reset covered by automated tests; in-game persistence test required | Corrupted values, clamping, unknown-key preservation, and reset scope are regression-tested. A real client reload cycle is still required. |
+
+## Runtime evidence on the target client (2026-11-11)
+
+- The addon has loaded and run on the installed Forever client: `ForeverWayfinderDB` saved variables exist with `schemaVersion = 1`, user-customized category toggles, and a dragged frame position.
+- The installed `!BugGrabber` capture (160 sessions) contains zero Forever Wayfinder errors or protected-function blocks.
+- The client runs a modern FrameXML (MapCanvas/WorldMap/EditMode); `C_Map.GetMapChildrenInfo`, `Enum.UIMapType`, `SetColorTexture`, `BackdropTemplate`, and `C_Timer.NewTicker` are all exercised by the installed Questie/HandyNotes/TomTom. Search map selection now follows Questie's proven `OpenWorldMap` pattern (`C_Map.OpenWorldMap` when present, otherwise `WorldMapFrame:Show()` + `SetMapID`).
+- This evidence confirms load and basic operation only; it does not replace the functional matrix below.
+
+## Verified dependency matrix
+
+| Component | Installed version | Interface | Contract evidence |
+|---|---|---|---|
+| WoW Forever client | build 1.60.1.70291 (per QuestieDB zone-data header) | 16001 | Modern FrameXML confirmed via client logs and installed addon API usage. |
+| QuestieDB | Forever 1.0.14 (`X-Contract-Version: 4`, baked mode) | 16001 | `src/api.lua`, `src/read/shared.lua`, `src/support/data.lua`, `src/corrections/enum/expansions.lua` (Classic rules). |
+| HandyNotes | v1.6.32 | 16001 listed | `HandyNotes.lua` plugin documentation and pin callback wiring. |
+| TomTom | v4.4.1-release (optional) | 16001 listed | `core/waypoints.lua` `AddWaypoint`/`RemoveWaypoint`. |
 
 ## Automated checks
 
 Run from the repository root with Lua 5.1:
 
 ```sh
-luac -p Core.lua Classification.lua ZoneMap.lua Data.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua
+luac -p Core.lua Classification.lua ZoneMap.lua Data.lua Waypoints.lua Search.lua Pins.lua UI.lua Minimap.lua tests/run.lua
 lua tests/run.lua
 ```
 

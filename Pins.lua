@@ -91,24 +91,26 @@ function ns:MakeNodeIterator(maps)
 
     local function iterate(data, coord)
         while true do
-            if data.nodes then
-                local node
-                coord, node = next(data.nodes, coord)
-                if coord then
-                    local icon = ns:GetNodeIcon(node)
-                    if icon then
-                        return coord, data.mapID, icon, scale, 1
-                    end
-                else
-                    data.nodes = nil
-                end
+            -- Only advance to the next map once the current map's nodes are
+            -- exhausted; a node without an icon must keep scanning this map.
+            if not data.nodes then
+                data.mapIndex = data.mapIndex + 1
+                data.mapID = data.maps[data.mapIndex]
+                if not data.mapID then return end
+                data.nodes = ns.index[data.mapID]
+                coord = nil
             end
 
-            data.mapIndex = data.mapIndex + 1
-            data.mapID = data.maps[data.mapIndex]
-            if not data.mapID then return end
-            data.nodes = ns.index[data.mapID]
-            coord = nil
+            local node
+            coord, node = next(data.nodes, coord)
+            if not coord then
+                data.nodes = nil
+            else
+                local icon = ns:GetNodeIcon(node)
+                if icon then
+                    return coord, data.mapID, icon, scale, 1
+                end
+            end
         end
     end
 
@@ -183,7 +185,7 @@ function handler:OnEnter(uiMapID, coord)
     end
 
     GameTooltip:AddLine(("Coordinates: %.1f, %.1f"):format(node.x * 100, node.y * 100), 0.55, 0.55, 0.50)
-    if TomTom and TomTom.AddWaypoint then
+    if ns.Waypoints:IsAvailable() then
         GameTooltip:AddLine("Right-click to set a waypoint", 0.45, 0.78, 0.45)
     end
 
@@ -200,15 +202,8 @@ function handler:OnClick(button, down, uiMapID, coord)
     local node = ns:GetNode(uiMapID, coord)
     if not node then return end
 
-    if TomTom and TomTom.AddWaypoint then
-        TomTom:AddWaypoint(uiMapID, node.x, node.y, {
-            title = ns:GetNodeTitle(node),
-            crazy = true,
-            from = "ForeverWayfinder",
-        })
-    else
-        ns:Print("TomTom is not installed; cannot set a waypoint.")
-    end
+    local ok, reason = ns.Waypoints:Set(uiMapID, node.x, node.y, ns:GetNodeTitle(node))
+    if not ok then ns:Print(reason) end
 end
 
 function ns:RegisterHandyNotes()

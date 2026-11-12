@@ -1,109 +1,14 @@
 local ADDON, ns = ...
 
-local FRAME_WIDTH = 520
-local FRAME_HEIGHT = 640
+local FRAME_WIDTH = 660
+local FRAME_HEIGHT = 700
 local CONTENT_LEFT = 18
-local CONTENT_RIGHT = 266
-local ROW_WIDTH = 232
+local CONTENT_RIGHT = 322
+local ROW_WIDTH = 292
 local ROW_HEIGHT = 24
-local PROGRESS_WIDTH = FRAME_WIDTH - CONTENT_LEFT * 2
+local PROGRESS_WIDTH = FRAME_WIDTH - 48
 
-local function SetBackdrop(frame, background, border)
-    if not frame.SetBackdrop then return end
-    frame:SetBackdrop({
-        bgFile = ns.MEDIA.white,
-        edgeFile = ns.MEDIA.tooltipBorder,
-        edgeSize = 12,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 },
-    })
-    frame:SetBackdropColor(background[1], background[2], background[3], background[4] or 1)
-    frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4] or 1)
-end
-
-local function CreateButton(parent, text, width, onClick)
-    local button = CreateFrame("Button", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    button:SetSize(width, 22)
-    SetBackdrop(button, { 0.12, 0.10, 0.07, 1 }, ns.Colors.frameBorder)
-
-    button.label = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    button.label:SetPoint("CENTER")
-    button.label:SetText(text)
-    button.label:SetTextColor(0.93, 0.86, 0.66)
-
-    button:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.22, 0.18, 0.10, 1)
-        self.label:SetTextColor(1.00, 0.82, 0.00)
-    end)
-    button:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(0.12, 0.10, 0.07, 1)
-        self.label:SetTextColor(0.93, 0.86, 0.66)
-    end)
-    button:SetScript("OnClick", onClick)
-
-    return button
-end
-
-local function CreateRow(parent, x, y, label, iconPath, getter, setter)
-    local row = CreateFrame("Button", nil, parent)
-    row:SetSize(ROW_WIDTH, ROW_HEIGHT)
-    row:SetPoint("TOPLEFT", x, y)
-
-    row.hover = row:CreateTexture(nil, "BACKGROUND")
-    row.hover:SetAllPoints()
-    row.hover:SetColorTexture(0.20, 0.16, 0.09, 1)
-    row.hover:SetAlpha(0)
-
-    row.box = CreateFrame("Frame", nil, row, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    row.box:SetSize(16, 16)
-    row.box:SetPoint("LEFT", 0, 0)
-    SetBackdrop(row.box, { 0.04, 0.04, 0.03, 1 }, { 0.45, 0.37, 0.20, 1 })
-
-    row.mark = row.box:CreateTexture(nil, "ARTWORK")
-    row.mark:SetTexture(ns.MEDIA.checkbox)
-    row.mark:SetSize(15, 15)
-    row.mark:SetPoint("CENTER")
-    row.mark:SetVertexColor(0.95, 0.78, 0.35)
-
-    local textOffset = 24
-    if iconPath then
-        row.icon = row:CreateTexture(nil, "ARTWORK")
-        row.icon:SetTexture(iconPath)
-        row.icon:SetSize(18, 18)
-        row.icon:SetPoint("LEFT", 24, 0)
-        textOffset = 48
-    end
-
-    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.label:SetPoint("LEFT", textOffset, 0)
-    row.label:SetWidth(ROW_WIDTH - textOffset)
-    row.label:SetJustifyH("LEFT")
-    row.label:SetText(label)
-
-    function row:Refresh()
-        local enabled = getter()
-        self.mark:SetShown(enabled)
-        if enabled then
-            self.label:SetTextColor(0.90, 0.87, 0.78)
-        else
-            self.label:SetTextColor(0.55, 0.53, 0.47)
-        end
-    end
-
-    row:SetScript("OnEnter", function(self)
-        self.hover:SetAlpha(1)
-    end)
-    row:SetScript("OnLeave", function(self)
-        self.hover:SetAlpha(0)
-    end)
-    row:SetScript("OnClick", function(self)
-        setter(not getter())
-        self:Refresh()
-        ns:Refresh()
-    end)
-
-    row:Refresh()
-    return row
-end
+local Journal = ns.Journal
 
 function ns:CreateUI()
     if self.uiFrame then return self.uiFrame end
@@ -121,7 +26,7 @@ function ns:CreateUI()
         local point, _, relativePoint, x, y = self:GetPoint(1)
         ns.db.uiPosition = { point = point, relativePoint = relativePoint, x = x, y = y }
     end)
-    SetBackdrop(frame, ns.Colors.dark, ns.Colors.frameBorder)
+    Journal.Decorate(frame)
 
     local position = self.db.uiPosition
     if position and position.point and type(position.x) == "number" and type(position.y) == "number" then
@@ -130,54 +35,46 @@ function ns:CreateUI()
         frame:SetPoint("CENTER")
     end
 
-    local header = frame:CreateTexture(nil, "BACKGROUND")
-    header:SetColorTexture(0.14, 0.11, 0.07, 0.9)
-    header:SetPoint("TOPLEFT", 8, -8)
-    header:SetPoint("TOPRIGHT", -8, -8)
-    header:SetHeight(50)
+    Journal.Header(frame, 56)
 
-    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -17)
-    title:SetText("|cffd4af37FOREVER WAYFINDER|r")
+    local icon = frame:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture(ns.MEDIA.addonIcon)
+    icon:SetSize(26, 26)
+    icon:SetPoint("TOPLEFT", 24, -24)
 
-    local subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    subtitle:SetPoint("TOP", 0, -37)
-    subtitle:SetText("Vendors · Trainers · Services")
-    subtitle:SetTextColor(0.62, 0.59, 0.52)
+    local title = Journal.Text(frame, 24, "Forever Wayfinder", ns.Colors.gold)
+    title:SetPoint("TOPLEFT", 58, -24)
+
+    local subtitle = Journal.Text(frame, 13, "Vendors · Trainers · Services", ns.Colors.muted)
+    subtitle:SetPoint("TOPLEFT", 59, -48)
 
     local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -4, -4)
+    close:SetPoint("TOPRIGHT", -8, -8)
     close:SetScript("OnClick", function() frame:Hide() end)
 
+    local page = Journal.Page(frame, 16, -76, -16, 84)
+
     frame.categoryRows = {}
-
-    local y = -72
+    local y = -16
     for _, group in ipairs(ns.categoryGroups) do
-        local headerText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        headerText:SetPoint("TOPLEFT", CONTENT_LEFT, y)
-        headerText:SetText("|cffd4af37" .. group.title .. "|r")
-
-        y = y - 18
+        Journal.Section(page, CONTENT_LEFT, y, FRAME_WIDTH - 32 - CONTENT_LEFT * 2 + 12, group.title)
+        y = y - 24
         for index, key in ipairs(group.keys) do
             local category = ns.categoryByKey[key]
             local column = (index - 1) % 2
             local rowIndex = math.floor((index - 1) / 2)
             local x = column == 0 and CONTENT_LEFT or CONTENT_RIGHT
             local rowY = y - rowIndex * ROW_HEIGHT
-
-            local row = CreateRow(frame, x, rowY, category.name, category.icon,
+            frame.categoryRows[key] = Journal.CheckRow(page, x, rowY, ROW_WIDTH, ROW_HEIGHT,
+                category.name, category.icon,
                 function() return ns.db.categories[key] end,
                 function(value) ns.db.categories[key] = value end)
-            frame.categoryRows[key] = row
         end
-
         y = y - math.ceil(#group.keys / 2) * ROW_HEIGHT - 12
     end
 
-    local displayHeader = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    displayHeader:SetPoint("TOPLEFT", CONTENT_LEFT, y)
-    displayHeader:SetText("|cffd4af37DISPLAY|r")
-    y = y - 18
+    Journal.Section(page, CONTENT_LEFT, y, FRAME_WIDTH - 32 - CONTENT_LEFT * 2 + 12, "Display")
+    y = y - 24
 
     frame.toggleRows = {}
     local toggles = {
@@ -193,27 +90,26 @@ function ns:CreateUI()
         local x = column == 0 and CONTENT_LEFT or CONTENT_RIGHT
         local rowY = y - rowIndex * ROW_HEIGHT
         local key = toggle.key
-        frame.toggleRows[key] = CreateRow(frame, x, rowY, toggle.label, nil,
+        frame.toggleRows[key] = Journal.CheckRow(page, x, rowY, ROW_WIDTH, ROW_HEIGHT, toggle.label, nil,
             function() return ns.db[key] end,
             function(value) ns.db[key] = value end)
     end
 
     local minimapRowY = y - math.ceil(#toggles / 2) * ROW_HEIGHT
-    frame.minimapButtonRow = CreateRow(frame, CONTENT_LEFT, minimapRowY, "Minimap button", nil,
+    frame.minimapButtonRow = Journal.CheckRow(page, CONTENT_LEFT, minimapRowY, ROW_WIDTH, ROW_HEIGHT,
+        "Minimap button", nil,
         function() return not ns.db.hideMinimapButton end,
         function(value)
             ns.db.hideMinimapButton = not value
             ns:UpdateMinimapButton()
         end)
 
-    local scaleLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    scaleLabel:SetPoint("TOPLEFT", CONTENT_LEFT, minimapRowY - 28)
-    scaleLabel:SetText("Pin scale")
-    scaleLabel:SetTextColor(0.86, 0.83, 0.74)
+    local scaleLabel = Journal.Text(page, 14, "Pin scale", ns.Colors.ink)
+    scaleLabel:SetPoint("TOPLEFT", CONTENT_LEFT, minimapRowY - 30)
 
-    local slider = CreateFrame("Slider", nil, frame)
-    slider:SetPoint("TOPLEFT", CONTENT_LEFT, minimapRowY - 46)
-    slider:SetSize(210, 14)
+    local slider = CreateFrame("Slider", nil, page)
+    slider:SetPoint("TOPLEFT", CONTENT_LEFT, minimapRowY - 48)
+    slider:SetSize(230, 14)
     slider:SetOrientation("HORIZONTAL")
     slider:SetMinMaxValues(0.5, 1.5)
     slider:SetValueStep(0.05)
@@ -224,9 +120,8 @@ function ns:CreateUI()
     sliderBackground:SetTexture(ns.MEDIA.sliderBg)
     sliderBackground:SetAllPoints()
 
-    local scaleValue = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    scaleValue:SetPoint("LEFT", slider, "RIGHT", 10, 0)
-    scaleValue:SetTextColor(0.83, 0.69, 0.32)
+    local scaleValue = Journal.Text(page, 14, "", ns.Colors.maroon)
+    scaleValue:SetPoint("LEFT", slider, "RIGHT", 12, 0)
     scaleValue:SetFormattedText("%.2fx", self.db.pinScale or 1)
     frame.scaleValue = scaleValue
     frame.scaleSlider = slider
@@ -242,46 +137,45 @@ function ns:CreateUI()
     end)
     slider:SetValue(self.db.pinScale or 1)
 
-    local footerLine = frame:CreateTexture(nil, "BACKGROUND")
-    footerLine:SetColorTexture(0.55, 0.44, 0.23, 0.7)
-    footerLine:SetPoint("BOTTOMLEFT", 10, 62)
-    footerLine:SetPoint("BOTTOMRIGHT", -10, 62)
-    footerLine:SetHeight(1)
+    local footer = Journal.Solid(frame, ns.Colors.leatherDark)
+    footer:SetPoint("BOTTOMLEFT", 10, 10)
+    footer:SetPoint("BOTTOMRIGHT", -10, 10)
+    footer:SetHeight(64)
+    local footerRule = Journal.Solid(frame, ns.Colors.goldLine)
+    footerRule:SetPoint("BOTTOMLEFT", footer, "TOPLEFT", 0, 0)
+    footerRule:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, 0)
+    footerRule:SetHeight(1)
 
-    frame.status = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    frame.status:SetPoint("BOTTOMLEFT", CONTENT_LEFT, 44)
-    frame.status:SetTextColor(0.62, 0.59, 0.52)
-    frame.status:SetText("Starting...")
+    frame.status = Journal.Text(frame, 13, "Starting...", ns.Colors.muted, "LEFT")
+    frame.status:SetPoint("BOTTOMLEFT", 24, 56)
+    frame.status:SetWidth(PROGRESS_WIDTH)
 
-    local progressBackground = frame:CreateTexture(nil, "BACKGROUND")
-    progressBackground:SetColorTexture(0.12, 0.10, 0.07, 1)
-    progressBackground:SetPoint("BOTTOMLEFT", CONTENT_LEFT, 35)
+    local progressBackground = Journal.Solid(frame, ns.Colors.leather)
+    progressBackground:SetPoint("BOTTOMLEFT", 24, 46)
     progressBackground:SetSize(PROGRESS_WIDTH, 3)
 
-    frame.progressBar = frame:CreateTexture(nil, "ARTWORK")
-    frame.progressBar:SetColorTexture(0.83, 0.69, 0.32, 0.9)
-    frame.progressBar:SetPoint("BOTTOMLEFT", CONTENT_LEFT, 35)
+    frame.progressBar = Journal.Solid(frame, ns.Colors.gold, "ARTWORK")
+    frame.progressBar:SetPoint("BOTTOMLEFT", 24, 46)
     frame.progressBar:SetSize(0, 3)
 
-    frame.refreshButton = CreateButton(frame, "Refresh", 88, function()
+    frame.refreshButton = Journal.Button(frame, "Refresh", 96, function()
         ns:StartScan()
     end)
-    frame.refreshButton:SetPoint("BOTTOMLEFT", CONTENT_LEFT, 10)
+    frame.refreshButton:SetPoint("BOTTOMLEFT", 24, 16)
 
-    frame.defaultsButton = CreateButton(frame, "Defaults", 88, function()
+    frame.defaultsButton = Journal.Button(frame, "Defaults", 96, function()
         ns:ResetSettings()
     end)
     frame.defaultsButton:SetPoint("LEFT", frame.refreshButton, "RIGHT", 8, 0)
 
-    frame.searchButton = CreateButton(frame, "Search NPCs", 112, function()
+    frame.searchButton = Journal.Button(frame, "Search NPCs", 120, function()
         ns:ToggleSearchUI()
     end)
     frame.searchButton:SetPoint("LEFT", frame.defaultsButton, "RIGHT", 8, 0)
 
-    local version = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    version:SetPoint("BOTTOMRIGHT", -CONTENT_LEFT, 15)
+    local version = Journal.Text(frame, 12, "", ns.Colors.muted)
+    version:SetPoint("BOTTOMRIGHT", -24, 20)
     version:SetFormattedText("v%s", ns.VERSION)
-    version:SetTextColor(0.40, 0.38, 0.33)
 
     frame:Hide()
     self.uiFrame = frame

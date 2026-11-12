@@ -159,6 +159,7 @@ end
 function ns:ResetIndex()
     self.index = {}
     self.descCache = {}
+    self.mapNameCache = {}
     self.stat = {
         nodes = 0, mapCount = 0, npcs = 0, objects = 0, catCount = {},
         invalidRecords = 0, invalidSpawns = 0, unavailablePositions = 0,
@@ -269,7 +270,7 @@ function ns:AddSpawn(mapID, x, y, cats, entry)
 
     local node = map[coord]
     if not node then
-        node = { x = xi / 10000, y = yi / 10000, cats = {}, entries = {}, more = 0 }
+        node = { x = xi / 10000, y = yi / 10000, cats = {}, entries = {} }
         map[coord] = node
         self.stat.nodes = self.stat.nodes + 1
         for key in pairs(cats) do
@@ -296,7 +297,6 @@ function ns:AddSpawn(mapID, x, y, cats, entry)
     entry.categories = entry.categories or {}
     for key in pairs(cats) do entry.categories[key] = true end
     entries[#entries + 1] = entry
-    node.more = 0
     return true
 end
 
@@ -332,7 +332,10 @@ function ns:IndexNpc(id, bits)
     if type(spawns) ~= "table" then return end
 
     self.stat.npcs = self.stat.npcs + 1
-    local entry = { name = name, sub = subName, id = id }
+    local entry = {
+        name = name, sub = subName, id = id,
+        searchName = Lower(name), searchSub = Lower(subName),
+    }
     if cats.vendor then
         entry.vendorIcon = VendorStockIcon(subName)
     end
@@ -382,7 +385,7 @@ function ns:IndexObject(id)
     end
     self.stat.objects = self.stat.objects + 1
 
-    local entry = { name = name, sub = "Mailbox", id = id }
+    local entry = { name = name, sub = "Mailbox", id = id, searchName = Lower(name), searchSub = "mailbox" }
     local cats = { mailbox = true }
 
     for zoneID, list in pairs(spawns) do
@@ -515,13 +518,13 @@ function ns:StartScan()
     if not npcOk or type(npcIds) ~= "table" then
         self.lastScan = { state = "failed", reason = "QuestieDB NPC ID enumeration failed." }
         self:Print("Indexing failed: QuestieDB NPC ID enumeration failed.")
-        self:UpdateUIStatus()
+        if self.UpdateUIStatus then self:UpdateUIStatus() end
         return false
     end
     if not objOk or type(objIds) ~= "table" then
         self.lastScan = { state = "failed", reason = "QuestieDB object ID enumeration failed." }
         self:Print("Indexing failed: QuestieDB object ID enumeration failed.")
-        self:UpdateUIStatus()
+        if self.UpdateUIStatus then self:UpdateUIStatus() end
         return false
     end
 

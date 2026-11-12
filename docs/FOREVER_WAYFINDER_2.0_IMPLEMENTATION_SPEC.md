@@ -540,19 +540,19 @@ A 2.0 feature is complete only when:
 
 Create one issue or task per independently reviewable unit:
 
-- [ ] Document supported client and dependency matrix.
+- [x] Document supported client and dependency matrix.
 - [x] Map current public API, TOC load order, saved variables, and settings.
 - [x] Add pure-Lua test harness and representative fixtures.
-- [ ] Define normalized NPC/spawn record contract.
+- [x] Define normalized NPC/spawn record contract.
 - [x] Extract and test classification rules.
-- [ ] Add robust coordinate/faction/flag validation.
+- [x] Add robust coordinate/faction/flag validation.
 - [x] Add scan lifecycle, cancellation, and generation safety.
 - [x] Harden ZoneMap decoding, validation, and diagnostics.
 - [ ] Profile and bound startup enumeration if necessary.
 - [x] Add complete shared-location NPC detail display (retain every indexed NPC entry per coordinate).
 - [x] Implement search service and category/zone filters.
 - [x] Implement search UI and guarded world-map/TomTom navigation actions.
-- [ ] Add waypoint provider abstraction and TomTom adapter.
+- [x] Add waypoint provider abstraction and TomTom adapter.
 - [ ] Improve settings layout and status diagnostics.
 - [ ] Version and migrate saved-variable schema.
 - [ ] Evaluate and implement selected map density improvements.

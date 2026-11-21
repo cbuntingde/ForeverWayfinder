@@ -5,6 +5,11 @@ local function IsPositiveInteger(value)
         and value ~= -math.huge and value > 0 and value % 1 == 0
 end
 
+local function IsNonNegativeInteger(value)
+    return type(value) == "number" and value == value and value ~= math.huge
+        and value ~= -math.huge and value >= 0 and value % 1 == 0
+end
+
 local function DecodeTable(source, chunkName)
     if type(source) ~= "string" or source == "" then
         return nil, "source is missing or is not a non-empty string"
@@ -46,7 +51,9 @@ ns.DecodeZoneMapTable = DecodeTable
 local function ValidateMapping(mapping, label)
     local valid, invalid = {}, 0
     for areaID, mapID in pairs(mapping) do
-        if IsPositiveInteger(areaID) and IsPositiveInteger(mapID) then
+        -- QuestieDB maps deliberately hidden areas to map 0; that is a suppression marker,
+        -- not a malformed entry.
+        if IsPositiveInteger(areaID) and IsNonNegativeInteger(mapID) then
             valid[areaID] = mapID
         else
             invalid = invalid + 1
@@ -82,18 +89,30 @@ function ns:BuildZoneMap()
         end
     end
 
-    local areaToMap = {}
-    for areaID, mapID in pairs(base) do areaToMap[areaID] = mapID end
-    for areaID, mapID in pairs(override) do areaToMap[areaID] = mapID end
+    local areaToMap, suppressedAreas = {}, {}
+    local function Apply(mapping)
+        for areaID, mapID in pairs(mapping) do
+            if mapID == 0 then
+                areaToMap[areaID] = nil
+                suppressedAreas[areaID] = true
+            else
+                areaToMap[areaID] = mapID
+                suppressedAreas[areaID] = nil
+            end
+        end
+    end
+    Apply(base)
+    Apply(override)
     local mapToArea = {}
     for areaID, mapID in pairs(areaToMap) do
         if not mapToArea[mapID] then mapToArea[mapID] = areaID end
     end
-    self.areaToMap, self.mapToArea = areaToMap, mapToArea
+    self.areaToMap, self.mapToArea, self.suppressedAreas = areaToMap, mapToArea, suppressedAreas
 
-    self.zoneMapDiagnostics = { baseEntries = 0, overrideEntries = 0,
+    self.zoneMapDiagnostics = { baseEntries = 0, overrideEntries = 0, suppressedAreas = 0,
         invalidBaseEntries = invalidBase or 0, invalidOverrideEntries = invalidOverride }
     for _ in pairs(base) do self.zoneMapDiagnostics.baseEntries = self.zoneMapDiagnostics.baseEntries + 1 end
     for _ in pairs(override) do self.zoneMapDiagnostics.overrideEntries = self.zoneMapDiagnostics.overrideEntries + 1 end
+    for _ in pairs(suppressedAreas) do self.zoneMapDiagnostics.suppressedAreas = self.zoneMapDiagnostics.suppressedAreas + 1 end
     return true, self.zoneMapDiagnostics.baseEntries + self.zoneMapDiagnostics.overrideEntries
 end

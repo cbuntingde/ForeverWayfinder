@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.5
+
+Dependency re-verification, trainer accuracy, and cleaner diagnostics.
+
+- Re-verify against QuestieDB Forever 1.1.3 (contract 4) on client 1.60.1 build 70399; the refreshed Forever NPC and object data is picked up automatically.
+- Classify hunter pet-family trainers (Bear, Boar, Cat, Wolf, Raptor, Turtle, Tallstrider and similar titles) as Pet Trainers instead of Other Trainers; riding instructors remain professions and word boundaries prevent false matches such as "Combat Trainer".
+- Count QuestieDB's display-suppressed areas (Hall of Legends, Champions' Hall, Deeprun Tram) as suppressed spawns in `/fw status` instead of reporting them as unmapped areas.
+- Add regression coverage for pet-family trainer classification, word-boundary matching, and zone suppression.
+
 ## 1.2.4
 
 Settings checkbox border reliability fix.

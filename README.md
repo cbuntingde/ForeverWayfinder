@@ -30,7 +30,7 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 - [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) (required)
 - [TomTom](https://www.curseforge.com/wow/addons/tomtom) (optional, for waypoints)
 
-Dependency contracts are verified against QuestieDB Forever 1.0.14 (contract 4), HandyNotes v1.6.32, and TomTom v4.4.1-release.
+Dependency contracts are verified against QuestieDB Forever 1.1.3 (contract 4) on client 1.60.1 build 70399, HandyNotes v1.6.32, and TomTom v4.4.1-release.
 
 ## Installation
 
@@ -56,7 +56,7 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 
 ## Notes
 
-- The zone-to-map mapping is decoded from QuestieDB's own support data, so new QuestieDB zone mappings are picked up without an addon update.
+- The zone-to-map mapping is decoded from QuestieDB's own support data, so new QuestieDB zone mappings are picked up without an addon update. Areas QuestieDB deliberately hides by mapping them to map 0 (Hall of Legends, Champions' Hall, Deeprun Tram) are counted as suppressed spawns rather than unmapped areas.
 - If the panel says the addon is disabled, the reason is printed in chat: a missing dependency, an outdated QuestieDB contract, or unreadable zone data.
 
 ## License
@@ -66,7 +66,7 @@ MIT. See `LICENSE`.
 
 ## Diagnostics and development tests
 
-- `/fw status` reports index totals, invalid records/spawns, unavailable positions, unmapped areas, scan timing and record errors.
+- `/fw status` reports index totals, invalid records/spawns, unavailable positions, suppressed spawns, unmapped areas, scan timing and record errors.
 - `/fw map` reports the render gates, HandyNotes registration, the current map's node and icon counts, a per-category shown-versus-skipped breakdown, and icon-path validity.
 - Malformed QuestieDB records are skipped without aborting the full index build.
 - Zone-map payloads are decoded in a restricted environment and validated before use.

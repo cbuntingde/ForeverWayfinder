@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.2.4"
+ns.VERSION = "1.2.5"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -678,9 +678,9 @@ local function HandleSlash(message)
         else
             ReportLine(("%d pins across %d maps from %d NPCs and %d objects."):format(
                 ns.stat.nodes, ns.stat.mapCount, ns.stat.npcs, ns.stat.objects))
-            ReportLine(("%d invalid records, %d invalid spawns, %d unavailable positions, %d unmapped areas."):format(
+            ReportLine(("%d invalid records, %d invalid spawns, %d unavailable positions, %d suppressed spawns, %d unmapped areas."):format(
                 ns.stat.invalidRecords or 0, ns.stat.invalidSpawns or 0,
-                ns.stat.unavailablePositions or 0, ns.stat.unmappedAreas or 0))
+                ns.stat.unavailablePositions or 0, ns.stat.suppressedSpawns or 0, ns.stat.unmappedAreas or 0))
             for reason, count in pairs(ns.stat.invalidSpawnReasons or {}) do
                 ReportLine(("Invalid spawn reason: %s = %d"):format(reason, count))
             end

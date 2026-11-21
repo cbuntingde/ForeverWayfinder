@@ -163,7 +163,7 @@ function ns:ResetIndex()
     self.stat = {
         nodes = 0, mapCount = 0, npcs = 0, objects = 0,
         invalidRecords = 0, invalidSpawns = 0, unavailablePositions = 0,
-        unmappedAreas = 0, npcErrors = 0, objectErrors = 0,
+        suppressedSpawns = 0, unmappedAreas = 0, npcErrors = 0, objectErrors = 0,
         invalidSpawnReasons = {}, invalidSpawnSamples = {},
         unavailablePositionSamples = {}, unmappedAreaSamples = {},
     }
@@ -215,6 +215,14 @@ function ns:RecordUnavailablePosition(entry, zoneID, spawn, mapID)
             mapID = mapID or "unknown",
         }
     end
+end
+
+function ns:RecordSuppressedSpawns(list)
+    self.stat.suppressedSpawns = (self.stat.suppressedSpawns or 0) + (type(list) == "table" and #list or 0)
+end
+
+function ns:IsSuppressedArea(areaID)
+    return self.suppressedAreas ~= nil and self.suppressedAreas[areaID] == true
 end
 
 function ns:RecordUnmappedArea(entry, areaID, list)
@@ -351,6 +359,8 @@ function ns:IndexNpc(id, bits)
                     self:RecordInvalidSpawn("spawn-is-not-a-table", entry, zoneID, spawn, mapID)
                 end
             end
+        elseif self:IsSuppressedArea(zoneID) and type(list) == "table" then
+            self:RecordSuppressedSpawns(list)
         else
             self:RecordUnmappedArea(entry, zoneID, list)
         end
@@ -399,6 +409,8 @@ function ns:IndexObject(id)
                     self:RecordInvalidSpawn("spawn-is-not-a-table", entry, zoneID, spawn, mapID)
                 end
             end
+        elseif self:IsSuppressedArea(zoneID) and type(list) == "table" then
+            self:RecordSuppressedSpawns(list)
         else
             self:RecordUnmappedArea(entry, zoneID, list)
         end

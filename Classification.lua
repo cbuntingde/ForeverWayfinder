@@ -14,8 +14,27 @@ local PROFESSION_WORDS = {
     "inscription", "scribe", "archaeology", "archaeologist",
     "smith", "leather", "armorer", "butcher", "physician", "surgeon", "medic", "pilot",
 }
+-- Hunter pet families. Titles like "Bear Trainer" name a pet trainer, but a plain substring
+-- match would also hit words such as "combat", so matching uses letter boundaries.
+local PET_FAMILY_WORDS = {
+    "bat", "bear", "bird of prey", "boar", "carrion bird", "cat", "crab", "crocolisk",
+    "devilsaur", "dog", "dragonhawk", "fox", "gorilla", "hyena", "monkey", "moth",
+    "nether ray", "raptor", "ravager", "rhino", "scorpid", "serpent", "silithid",
+    "spider", "sporebat", "tallstrider", "turtle", "warp stalker", "wasp",
+    "wind serpent", "wolf", "worm",
+}
 local function Contains(text, needle)
     return text:find(needle, 1, true) ~= nil
+end
+local function ContainsWord(text, word)
+    return text:find("%f[%a]" .. word .. "%f[%A]") ~= nil
+end
+local function IsPetFamilyTrainer(sub)
+    if not Contains(sub, "trainer") or Contains(sub, "riding") then return false end
+    for i = 1, #PET_FAMILY_WORDS do
+        if ContainsWord(sub, PET_FAMILY_WORDS[i]) then return true end
+    end
+    return false
 end
 function ns.ClassificationNormalizeText(value)
     if type(value) ~= "string" then return "" end
@@ -36,6 +55,7 @@ function ns.ClassificationTrainerCategory(subName)
     if sub == "" then return "otherTrainer" end
     if Contains(sub, "portal") then return "portal" end
     if Contains(sub, "battle pet") or Contains(sub, "pet trainer") then return "pet" end
+    if IsPetFamilyTrainer(sub) then return "pet" end
     if Contains(sub, "weapon master") then return "weapon" end
     for i = 1, #CLASS_TRAINER_WORDS do
         if Contains(sub, CLASS_TRAINER_WORDS[i]) then return "classTrainer" end

@@ -20,6 +20,11 @@ local bits = { VENDOR=1, REPAIR=2, INNKEEPER=4, AUCTIONEER=8, BANKER=16,
 eq(ns.ClassificationNormalizeText("  Mage\n Trainer "), "mage trainer", "normalize")
 eq(ns.ClassificationTrainerCategory("Portal Trainer"), "portal", "portal")
 eq(ns.ClassificationTrainerCategory("Battle Pet Trainer"), "pet", "pet")
+eq(ns.ClassificationTrainerCategory("Wolf Pet Trainer"), "pet", "explicit pet trainer")
+eq(ns.ClassificationTrainerCategory("Bear Trainer"), "pet", "pet family trainer")
+eq(ns.ClassificationTrainerCategory("Carrion Bird Trainer"), "pet", "multi-word pet family trainer")
+eq(ns.ClassificationTrainerCategory("Wolf Riding Trainer"), "profession", "riding trainer stays a profession")
+eq(ns.ClassificationTrainerCategory("Combat Trainer"), "otherTrainer", "pet family matching respects word boundaries")
 eq(ns.ClassificationTrainerCategory("Weapon Master"), "weapon", "weapon")
 eq(ns.ClassificationTrainerCategory("Master Mage"), "classTrainer", "class")
 eq(ns.ClassificationTrainerCategory("Expert Blacksmith"), "profession", "profession")
@@ -98,6 +103,15 @@ eq(ns.index[100][40006000].cats.classTrainer, true, "NPC trainer category indexe
 ns:IndexNpc(102, fakeBits)
 eq(ns.stat.invalidRecords, 1, "malformed NPC flags counted")
 
+-- Areas QuestieDB deliberately maps to 0 are display suppressors, not unmapped data.
+ns.suppressedAreas = { [9] = true }
+NpcDB.GetAll = function() return { "Suppressed Vendor", "Trade Supplies", "AH", fakeBits.VENDOR } end
+NpcDB.Get = function() return { [9] = { { 10, 10 }, { 20, 20 } } } end
+ns:IndexNpc(150, fakeBits)
+eq(ns.stat.suppressedSpawns, 2, "display-suppressed spawns counted separately")
+eq(ns.stat.unmappedAreas, 0, "suppressed spawns are not reported as unmapped")
+ns.suppressedAreas = nil
+
 local zoneChunk, zoneError = loadfile("ZoneMap.lua")
 assert(zoneChunk, zoneError)
 local zoneNS = {}
@@ -106,7 +120,8 @@ local decoded = zoneNS.DecodeZoneMapTable("return { [1] = 2, [3] = 4 }", "fixtur
 eq(decoded[1], 2, "decoded map")
 local validated, validationError, invalidCount = zoneNS.ValidateZoneMapMapping({ [1] = 2, ["bad"] = 3, [4] = 0 }, "test")
 eq(validated[1], 2, "validated mapping")
-eq(invalidCount, 2, "invalid mapping entries counted")
+eq(validated[4], 0, "zero map retained as a suppression marker")
+eq(invalidCount, 1, "invalid mapping entries counted")
 local unsafe = zoneNS.DecodeZoneMapTable("return setmetatable({}, {})", "unsafe")
 eq(unsafe, nil, "sandbox blocks globals")
 local malformed, malformedError = zoneNS.DecodeZoneMapTable("not valid lua", "malformed")
@@ -175,7 +190,7 @@ eq(ns:FactionAllowed("H"), true, "filter disabled shows enemy services")
 ------------------------------------------------------------------------------------------
 _G.LibQuestieDB = { Support = { Get = function()
     return { private = {
-        areaIdToUiMapId = "return { [1] = 100, [2] = 200 }",
+        areaIdToUiMapId = "return { [1] = 100, [2] = 200, [3] = 0 }",
         areaIdToUiMapIdOverride = "return { [2] = 201 }",
     } }
 end } }
@@ -184,6 +199,19 @@ eq(buildOk, true, "zone map builds")
 eq(zoneNS.areaToMap[1], 100, "base mapping kept")
 eq(zoneNS.areaToMap[2], 201, "override takes precedence")
 eq(zoneNS.mapToArea[201], 2, "reverse mapping follows override")
+eq(zoneNS.areaToMap[3], nil, "zero mapping produces no map pin")
+eq(zoneNS.suppressedAreas[3], true, "zero mapping tracked as suppressed")
+
+_G.LibQuestieDB.Support.Get = function()
+    return { private = {
+        areaIdToUiMapId = "return { [1] = 100, [2] = 200 }",
+        areaIdToUiMapIdOverride = "return { [1] = 0 }",
+    } }
+end
+eq(zoneNS:BuildZoneMap(), true, "suppressing override builds")
+eq(zoneNS.areaToMap[1], nil, "override can suppress a base mapping")
+eq(zoneNS.suppressedAreas[1], true, "override suppression tracked")
+eq(zoneNS.suppressedAreas[2], nil, "unsuppressed area not flagged")
 LibQuestieDB.Support.Get = function()
     return { private = {
         areaIdToUiMapId = "return { [1] = 100 }",

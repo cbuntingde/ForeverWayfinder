@@ -1,6 +1,6 @@
 # World Map Location Browser — Design
 
-**Status:** Phases A-C implemented and the panel redesigned to match the map frame (2026-11-22); in-game visual geometry and map-change verification remain
+**Status:** Shipped in 1.3.0 (2026-11-22) after the panel was redesigned to match the map frame; in-game visual geometry and map-change verification remain outstanding
 **Date:** 2026-11-22  
 **Scope:** Forever Wayfinder 1.3.x  
 **Tracking issue:** the GitHub issue that links this document
@@ -73,7 +73,7 @@ A panel docked to the right edge of `WorldMapFrame`, styled as a dark leather-an
 
 ### 3.5 Filter box
 
-A single text input above the list filters the current mode by NPC name or sub-name using `ClassificationNormalizeText` and plain substring matching, consistent with search ([Search.lua:4](file:///C:/Program%20Files%20(x86)/World%20of%20Warcraft/_forever_/Interface/AddOns/ForeverWayfinder/Search.lua#L4)). Filtering stays inside the selected scope; it does not silently switch modes.
+A single text input above the list filters the current mode by NPC name or sub-name using `ClassificationNormalizeText` and plain substring matching, consistent with search ([Search.lua:4](../Search.lua#L4)). Filtering stays inside the selected scope; it does not silently switch modes.
 
 ### 3.6 States
 

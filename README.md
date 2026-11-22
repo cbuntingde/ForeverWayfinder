@@ -22,6 +22,7 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 - Optional TomTom waypoints: right-click any pin.
 - Draggable round minimap button.
 - Search every indexed NPC by name or sub-name, with category and zone/map filters. Search uses case-insensitive substring matching (not fuzzy matching).
+- A "Locations panel" checkbox in the Display settings to show or hide the browser independently of the map.
 - World map browser panel: a leather-and-gold drawer docked to the map frame's right edge, listing every indexed location grouped by category with counts and a name filter, in "This map" or "All zones" scope (all zones groups each category by zone). Left-click a row for a TomTom waypoint; right-click to open that location's map. The panel follows map changes, collapses sections, and remembers its position, scope, and open state; a round map icon in the top-left stack (registered through Questie's Krowi_WorldMapButtons library when installed, so it stacks below the map pin and Questie's button without overlapping either) reopens it.
 
 ## Requirements

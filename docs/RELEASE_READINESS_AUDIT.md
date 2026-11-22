@@ -1,14 +1,15 @@
 # Release-readiness audit — Forever Wayfinder
 
-**Baseline:** `main` at `74431c2efcedbacd4766888156b0cb7351b7885c`  
-**Hardening branch:** `fix/search-window-layering`  
+**Baseline:** `main` at `69ae84f` (tag `v1.3.0`)  
 **Product:** World of Warcraft: Forever addon  
-**Current package version:** 1.1.0  
+**Current package version:** 1.3.0  
 **TOC interface:** 16001
+
+> Updated for 1.3.0: adds the world map location browser and its icon, tests, and checklist items. The in-game measurements quoted below are from the earlier 1.1.0 review and have not been re-measured on 1.3.0.
 
 ## Executive assessment
 
-The addon has a working foundation: QuestieDB-backed indexing, HandyNotes world-map/minimap integration, service categories, faction filtering, settings, minimap button, TomTom waypoint support, status diagnostics, and a search service. The latest in-game report supplied during this review shows a completed scan with 1,616 coordinate nodes across 51 maps, 1,184 NPC records and 127 objects, zero invalid records, zero invalid spawns, and zero per-record scan errors.
+The addon has a working foundation: QuestieDB-backed indexing, HandyNotes world-map/minimap integration, service categories, faction filtering, settings, minimap button, TomTom waypoint support, status diagnostics, a search service, and a world map location browser. The in-game report supplied during the 1.1.0 review shows a completed scan with 1,616 coordinate nodes across 51 maps, 1,184 NPC records and 127 objects, zero invalid records, zero invalid spawns, and zero per-record scan errors.
 
 That is strong evidence for the data/index pipeline on the tested character and dependency set. It is not proof of release-wide compatibility or completeness. UI, navigation, dependency-version, upgrade, packaging, and alternate-character/faction behavior still require actual client testing.
 
@@ -39,10 +40,11 @@ A mocked WoW-frame lifecycle regression test now checks creation, centering, str
 | Tooltips | Names, sub-names, categories and coordinates; bounded to 12 visible entries | Implemented |
 | Search | Case-insensitive name/sub-name substring, category, zone-name and exact numeric map-ID filters; capped result display | Implemented; no fuzzy search, NPC-ID search, or explicit map-coordinate zoom/highlight |
 | Navigation | Search result selects map when supported; optional TomTom waypoint; pin right-click waypoint | Implemented with graceful optional dependency checks; verify on target client |
-| Settings | Master enable, category toggles, map/minimap visibility, continent display, faction filter, pin scale | Implemented |
+| World map browser | Category-grouped list docked to the map frame, "This map" / "All zones" scopes, name filter, collapsible headers, row waypoint/map actions, persisted position, scope and open state; top-left icon registered through Questie's Krowi_WorldMapButtons library when present | Implemented; panel geometry, icon stacking and map-change tracking need in-game validation |
+| Settings | Master enable, category toggles, map/minimap visibility, continent display, faction filter, pin scale, Locations panel | Implemented |
 | Minimap button | Show/hide, drag around minimap, left-click settings, right-click minimap pin toggle | Implemented |
 | Persistence | SavedVariables defaults and defensive normalization for existing values | Implemented; no multi-version migration framework is needed until schema changes are introduced |
-| Diagnostics | Scan totals, invalid records/spawns, unavailable positions, unmapped areas, timing and protected-record errors | Implemented |
+| Diagnostics | Scan totals, invalid records/spawns, unavailable and suppressed positions, unmapped areas, timing and protected-record errors; `/fw icon` for the map icon stack and `/fw map` for per-map pins | Implemented |
 | Localization | English strings are embedded in Lua | Not implemented; only add if the product commits to localized releases |
 | Favorites / recents | Not present | Optional product enhancement, not required for core promise |
 | Search navigation focus | No guaranteed zoom/pin highlight at result coordinates | UX enhancement; only implement against verified client APIs |
@@ -67,14 +69,17 @@ These items cannot be honestly marked complete from repository inspection or pur
 - [ ] Verify the declared interface number against the current supported WoW Forever client build.
 - [ ] Record the tested QuestieDB and HandyNotes versions and their public API contract.
 - [ ] Test a clean install and an upgrade while preserving existing `ForeverWayfinderDB` saved variables.
-- [ ] Confirm no Lua errors on login, reload, opening/closing both windows, changing settings, and using all slash commands.
+- [ ] Confirm no Lua errors on login, reload, opening/closing all windows, changing settings, and using all slash commands.
 - [ ] Confirm the search window opens visibly from both the settings button and `/fw search`; enter a name and confirm results appear.
 - [ ] Confirm search filters, no-match state, index-not-ready state, result limit, and result clicks.
+- [ ] Confirm the browser opens with the map, lists the displayed map, and switches between This map and All zones without overlapping the map pin or Questie's button.
+- [ ] Confirm browser row actions: left-click sets a waypoint, right-click opens the row's own map in All zones, and header collapse, filter, and Clear waypoint work.
+- [ ] Confirm the browser remembers position, scope and open state across map changes, continent/city transitions and `/reload`.
 - [ ] Confirm representative major-city pins, including Stormwind, for vendors, trainers and service NPCs.
 - [ ] Test Alliance and Horde characters with faction filtering on and off; verify neutral NPCs remain visible.
 - [ ] Test world-map/minimap toggles, continent display, category toggles, tooltips, and minimap button interactions.
 - [ ] Test with TomTom installed and absent.
-- [ ] Run automated Lua syntax, pure-Lua regression, and mocked search UI tests on the exact PR head.
+- [ ] Run automated Lua syntax, pure-Lua regression, and mocked search/browser UI tests on the exact release commit.
 - [ ] Measure enumeration duration, scan slice duration, search latency, and memory behavior on the full QuestieDB dataset.
 - [ ] Verify the packaged ZIP contains the TOC and runtime Lua files, and excludes tests, development docs, screenshots, and CI files.
 
@@ -95,6 +100,7 @@ The Lua validation workflow now installs the distro-provided Lua 5.1 package rat
 1. Lua 5.1 syntax validation over every addon module and test file.
 2. Pure-Lua regression tests for classification, data/index behavior, zone-map decoding, and search filtering.
 3. Mocked search-window lifecycle tests for the WoW frame creation/toggle path.
+4. Mocked world map browser lifecycle tests for panel creation, scope switching, filtering, row actions and persistence.
 
 A passing workflow is necessary but not sufficient: it cannot validate the real WoW UI, QuestieDB runtime data, HandyNotes callbacks, or TomTom integration.
 
@@ -104,7 +110,7 @@ These are not release blockers and should not be added merely to increase featur
 
 - Fuzzy search and NPC-ID lookup.
 - Favorites, recent searches, and saved waypoints.
-- A full embedded map browser or map-coordinate zoom/highlight.
+- Map-coordinate zoom/highlight from search results (the embedded map browser now exists).
 - Additional POI types without a reliable QuestieDB source field.
 - Curated static coordinates that duplicate or conflict with QuestieDB.
 - Localization without a committed translation workflow.

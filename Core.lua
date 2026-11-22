@@ -610,6 +610,9 @@ function ns:Refresh()
     if self.UpdateUIStatus then
         self:UpdateUIStatus()
     end
+    if self.browser then
+        self.browser:ScheduleRefresh(0)
+    end
 end
 
 --------------------------------------------------------------------------------------------
@@ -623,6 +626,7 @@ local function PrintHelp()
     ns:Print("  /fw refresh - rebuild the NPC index")
     ns:Print("  /fw reset - restore default settings")
     ns:Print("  /fw search - search NPCs by name, category, or zone")
+    ns:Print("  /fw browse - open or close the world map location browser")
     ns:Print("  /fw clear - clear the last Forever Wayfinder waypoint")
     ns:Print("  /fw status - show index statistics")
     ns:Print("  /fw map - diagnose map pins for the current map")
@@ -648,6 +652,8 @@ local function HandleSlash(message)
         ns:ResetSettings()
     elseif message == "search" then
         if ns.ToggleSearchUI then ns:ToggleSearchUI() end
+    elseif message == "browse" then
+        if ns.ToggleBrowser then ns:ToggleBrowser() end
     elseif message == "clear" then
         local ok, reason = ns.Waypoints:ClearLast()
         ns:Print(ok and "Waypoint cleared." or reason)
@@ -912,6 +918,12 @@ function ns:Init()
     self:RegisterHandyNotes()
     if self.CreateUI then self:CreateUI() end
     if self.CreateMinimapButton then self:CreateMinimapButton() end
+    if self.SetupBrowser then
+        -- The browser hooks the world map frame; a client-specific layout must not
+        -- take down the rest of the addon.
+        local ok, err = pcall(self.SetupBrowser, self)
+        if not ok then self:Print("World map browser unavailable: " .. tostring(err)) end
+    end
 end
 
 local startup = CreateFrame("Frame")

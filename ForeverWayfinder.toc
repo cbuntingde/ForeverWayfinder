@@ -16,6 +16,7 @@ ZoneMap.lua
 Data.lua
 Waypoints.lua
 Search.lua
+Browser.lua
 Pins.lua
 UI.lua
 Minimap.lua

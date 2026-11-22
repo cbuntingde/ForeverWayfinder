@@ -1,6 +1,6 @@
 # World Map Location Browser — Design
 
-**Status:** Proposed design; Phase A (pure data layer) implemented
+**Status:** Phases A-B implemented (data layer, this-map panel); all-zones mode and settings wiring remain
 **Date:** 2026-11-22  
 **Scope:** Forever Wayfinder 1.3.x  
 **Tracking issue:** the GitHub issue that links this document

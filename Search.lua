@@ -268,6 +268,29 @@ local function CreateFilter(parent, label, x, y, width)
     return input
 end
 
+-- Same selection pattern Questie uses on this client family: the C_Map opener
+-- when present (protected in combat), otherwise show the frame and set the map.
+function ns:FocusMap(mapID)
+    if not ns.ClassificationIsPositiveInteger(mapID) then return false end
+    if C_Map and type(C_Map.OpenWorldMap) == "function" then
+        if InCombatLockdown and InCombatLockdown() then
+            ns:Print("Cannot open the map during combat.")
+            return false
+        end
+        local ok = pcall(C_Map.OpenWorldMap, mapID)
+        if ok then return true end
+    end
+    if WorldMapFrame and type(WorldMapFrame.SetMapID) == "function" then
+        if not WorldMapFrame:IsShown() then
+            WorldMapFrame:Show()
+        end
+        local ok = pcall(WorldMapFrame.SetMapID, WorldMapFrame, mapID)
+        if ok then return true end
+    end
+    ns:Print("This client does not expose world-map selection from addons.")
+    return false
+end
+
 function ns:CreateSearchUI()
     if self.searchFrame then return self.searchFrame end
 
@@ -329,27 +352,6 @@ function ns:CreateSearchUI()
     frame.resultRows = {}
     frame.searchGeneration = 0
 
-    local function FocusMap(result)
-        -- Same selection pattern Questie uses on this client family: the C_Map opener
-        -- when present (protected in combat), otherwise show the frame and set the map.
-        if C_Map and type(C_Map.OpenWorldMap) == "function" then
-            if InCombatLockdown and InCombatLockdown() then
-                ns:Print("Cannot open the map during combat.")
-                return
-            end
-            local ok = pcall(C_Map.OpenWorldMap, result.mapID)
-            if ok then return end
-        end
-        if WorldMapFrame and type(WorldMapFrame.SetMapID) == "function" then
-            if not WorldMapFrame:IsShown() then
-                WorldMapFrame:Show()
-            end
-            local ok = pcall(WorldMapFrame.SetMapID, WorldMapFrame, result.mapID)
-            if ok then return end
-        end
-        ns:Print("This client does not expose world-map selection from addons.")
-    end
-
     local function SetWaypoint(result)
         local ok, reason = ns.Waypoints:Set(result.mapID, result.node.x, result.node.y,
             result.entry.name or ns:GetNodeTitle(result.node))
@@ -409,7 +411,7 @@ function ns:CreateSearchUI()
                         if button == "RightButton" then
                             SetWaypoint(self.result)
                         else
-                            FocusMap(self.result)
+                            ns:FocusMap(self.result.mapID)
                         end
                     end)
                     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")

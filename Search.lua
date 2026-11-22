@@ -108,6 +108,148 @@ function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
 end
 
 --------------------------------------------------------------------------------------------
+-- Browse: category-grouped listing for the world map browser
+--------------------------------------------------------------------------------------------
+
+-- options = {
+--   maps       = array or map-set of UI map IDs; nil browses every indexed map,
+--                an empty table browses nothing.
+--   query      = optional name/sub-name substring, normalized like search.
+--   categories = optional enabled-category set (db.categories); nil enables all.
+--   limit      = rows kept per category after sorting (default 100).
+-- }
+-- Returns sections in category-group order plus meta { shown = n, capped = boolean }.
+-- Rows are per indexed entry so the categories shown always match the entry itself;
+-- the waypoint target stays the shared node.
+function ns:BrowseEntries(options)
+    if not self.ready or type(self.index) ~= "table" then
+        return {}, { shown = 0, capped = false, reason = "index-not-ready" }
+    end
+    if type(options) ~= "table" then options = {} end
+
+    local query = ns.ClassificationNormalizeText(options.query)
+    local limit = ns.ClassificationIsPositiveInteger(options.limit) and options.limit or 100
+    local enabled = type(options.categories) == "table" and options.categories or nil
+
+    local mapScope
+    if type(options.maps) == "table" then
+        mapScope = {}
+        for key, value in pairs(options.maps) do
+            local mapID = key
+            if type(key) == "number" and type(value) == "number" then mapID = value end
+            if ns.ClassificationIsPositiveInteger(mapID) then mapScope[mapID] = true end
+        end
+    end
+
+    local order, ordered = {}, {}
+    local function AddCategory(key, group)
+        if ordered[key] then return end
+        local category = self.categoryByKey and self.categoryByKey[key]
+        if not category then return end
+        ordered[key] = true
+        order[#order + 1] = { key = key, group = group or category.group,
+            name = category.name or key, icon = category.icon }
+    end
+    if type(self.categoryGroups) == "table" then
+        for index = 1, #self.categoryGroups do
+            local group = self.categoryGroups[index]
+            local keys = group.keys or {}
+            for keyIndex = 1, #keys do AddCategory(keys[keyIndex], group.key) end
+        end
+    end
+    if type(self.categoryList) == "table" then
+        for index = 1, #self.categoryList do
+            local category = self.categoryList[index]
+            AddCategory(category.key, category.group)
+        end
+    end
+
+    local sections, sectionByKey = {}, {}
+    for index = 1, #order do
+        local category = order[index]
+        if enabled == nil or enabled[category.key] == true then
+            local section = { key = category.key, group = category.group, name = category.name,
+                icon = category.icon, total = 0, capped = false, rows = {} }
+            sections[#sections + 1] = section
+            sectionByKey[category.key] = section
+        end
+    end
+
+    local function ScanMap(mapID, nodes)
+        local mapName = self:GetMapName(mapID)
+        for coord, node in pairs(nodes) do
+            if type(node) == "table" and type(node.entries) == "table" then
+                for index = 1, #node.entries do
+                    local entry = node.entries[index]
+                    if type(entry) == "table" then
+                        local name = entry.searchName or ns.ClassificationNormalizeText(entry.name)
+                        local sub = entry.searchSub or ns.ClassificationNormalizeText(entry.sub)
+                        if query == "" or Contains(name, query) or Contains(sub, query) then
+                            local cats = type(entry.categories) == "table" and entry.categories or node.cats
+                            if type(cats) == "table" then
+                                for key in pairs(cats) do
+                                    local section = sectionByKey[key]
+                                    if section then
+                                        local display = type(entry.name) == "string" and entry.name ~= ""
+                                            and entry.name or "Unknown NPC"
+                                        local title = display
+                                        if type(entry.sub) == "string" and entry.sub ~= "" then
+                                            title = display .. " - " .. entry.sub
+                                        end
+                                        section.rows[#section.rows + 1] = {
+                                            key = key, mapID = mapID, coord = coord,
+                                            node = node, entry = entry,
+                                            name = display, sub = entry.sub, title = title,
+                                            zoneName = mapName,
+                                            sortName = name, sortSub = sub,
+                                        }
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if mapScope then
+        for mapID in pairs(mapScope) do
+            local nodes = self.index[mapID]
+            if type(nodes) == "table" then ScanMap(mapID, nodes) end
+        end
+    else
+        for mapID, nodes in pairs(self.index) do
+            if type(mapID) == "number" and type(nodes) == "table" then ScanMap(mapID, nodes) end
+        end
+    end
+
+    local function LessRow(a, b)
+        if a.zoneName ~= b.zoneName then return a.zoneName < b.zoneName end
+        if a.sortName ~= b.sortName then return a.sortName < b.sortName end
+        if a.sortSub ~= b.sortSub then return a.sortSub < b.sortSub end
+        if a.mapID ~= b.mapID then return a.mapID < b.mapID end
+        if a.coord ~= b.coord then return a.coord < b.coord end
+        return (a.entry.id or 0) < (b.entry.id or 0)
+    end
+
+    local shown, capped = 0, false
+    for index = 1, #sections do
+        local section = sections[index]
+        table.sort(section.rows, LessRow)
+        section.total = #section.rows
+        if section.total > limit then
+            for rowIndex = section.total, limit + 1, -1 do section.rows[rowIndex] = nil end
+            section.capped = true
+            capped = true
+        end
+        shown = shown + #section.rows
+    end
+
+    return sections, { shown = shown, capped = capped }
+end
+
+--------------------------------------------------------------------------------------------
 -- Search window
 --------------------------------------------------------------------------------------------
 

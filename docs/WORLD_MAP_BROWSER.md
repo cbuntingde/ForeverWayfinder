@@ -1,6 +1,6 @@
 # World Map Location Browser — Design
 
-**Status:** Proposed design, not implemented  
+**Status:** Proposed design; Phase A (pure data layer) implemented
 **Date:** 2026-11-22  
 **Scope:** Forever Wayfinder 1.3.x  
 **Tracking issue:** the GitHub issue that links this document
@@ -57,7 +57,7 @@ A panel docked to the right edge of `WorldMapFrame`, rendered in the existing jo
 ### 3.3 Grouping and sorting
 
 - Sections follow `ns.categoryGroups` order (SERVICES, TRAINERS, OTHER POINTS OF INTEREST), then `keys` order within each group. Each section header shows a count.
-- A node appears once under every enabled category it matches. A vendor that also repairs appears under both Vendors and Repair — that is the point of category browsing, and it matches how the search category filter behaves today.
+- Each indexed entry appears under every enabled category it matches. A vendor that also repairs appears under both Vendors and Repair — that is the point of category browsing, and it matches how the search category filter behaves today. A shared coordinate with several NPCs yields one row per NPC, since the category claim belongs to the entry, not the merged node.
 - Only categories enabled in `db.categories` are shown, so the list always matches the visible pins. `db.factionFilter` is applied at index time, so the list inherits it without extra work.
 - Sort inside a category: map mode → `ns:GetNodeTitle(node)`, then coordinate; all-zones mode → zone name, then title.
 - Row text: title (`ns:GetNodeTitle`, `Core.lua:464`), detail line with zone, coordinates and the node's category names (`ns:GetNodeCategoryNames`, `Core.lua:473`).
@@ -85,7 +85,7 @@ A single text input above the list filters the current mode by NPC name or sub-n
 
 ## 4. Implementation plan
 
-1. **Pure data layer (testable, no WoW API).** Add `ns:BrowseEntries(options)` in `Search.lua` next to `SearchEntries`: input `{ maps = { id, ... } | nil (all), query = "", categories = db.categories, limit = 200 }`; output an ordered list of `{ category, group, mapID, coord, node, entry, zoneName, title }` groups. Reuse `GetMapName` and normalized `searchName`/`searchSub`. Unit tests in `tests/run.lua` in the existing style (Lua 5.1, no client APIs).
+1. **Pure data layer (testable, no WoW API).** Add `ns:BrowseEntries(options)` in `Search.lua` next to `SearchEntries`: input `{ maps = { id, ... } | nil (all), query = "", categories = db.categories, limit = 100 }`; output sections in category-group order, each with `{ key, group, name, icon, total, capped, rows }` where rows carry `{ mapID, coord, node, entry, name, sub, title, zoneName }`, plus meta `{ shown, capped }`. Reuse `GetMapName` and normalized `searchName`/`searchSub`. Unit tests in `tests/run.lua` in the existing style (Lua 5.1, no client APIs).
 2. **Panel UI.** New `Browser.lua`: map-frame anchor, toggle tab, header, filter input, scroll frame with lazily created rows (same pattern as `Search.lua:246`), section headers, footer, map-change hooks, debounced refresh. Load after `Search.lua` in the TOC.
 3. **Wiring.** `Core.lua`: defaults `browserEnabled = true`, `browserMode = "map"`; `/fw browse` in `HandleSlash` and `PrintHelp`; call the browser refresh from `ns:Refresh()`. `UI.lua`: "World map browser" checkbox in the Display section.
 4. **Tests and docs.** Extend `tests/run.lua` for grouping, multi-category membership, scope filtering, caps and sort order; update `README.md` usage/features; add a `CHANGELOG.md` entry.
@@ -95,7 +95,7 @@ Suggested phases: (A) `BrowseEntries` + tests, (B) panel with this-map mode, (C)
 ## 5. Performance
 
 - Rows are created on demand and reused; hidden overflow rows are kept, as in the search window.
-- Hard caps: 100 rows per category in map mode, 200 total in all-zones mode, with a "narrow with the filter" note when clamped.
+- Hard caps: 100 rows per category in both modes, applied after sorting so the kept rows are deterministic, with a "narrow with the filter" note when clamped. Collapsed sections need not render their rows.
 - `GetMapName` results are cached in `ns.mapNameCache`.
 - The only per-frame work while the panel is visible is the 0.25 s map-ID comparison.
 - A rebuild walks only the nodes of the relevant maps; it never scans the full index in map mode.

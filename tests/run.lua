@@ -168,6 +168,112 @@ local limited = ns:SearchEntries("vendor", "", "", 1)
 eq(#limited, 1, "search result limit")
 
 ------------------------------------------------------------------------------------------
+-- Browse entries: category grouping, scope, filters, deterministic caps
+------------------------------------------------------------------------------------------
+local browseNS = {}
+local browseChunk, browseError = loadfile("Search.lua")
+assert(browseChunk, browseError)
+browseChunk("ForeverWayfinder", browseNS)
+browseNS.ClassificationNormalizeText = ns.ClassificationNormalizeText
+browseNS.ClassificationIsPositiveInteger = ns.ClassificationIsPositiveInteger
+browseNS.mapNameCache = { [10] = "Elwynn Forest", [20] = "Westfall" }
+browseNS.categoryList = {
+    { key = "vendor", group = "services", name = "Vendors", icon = "vendor-icon" },
+    { key = "repair", group = "services", name = "Repair", icon = "repair-icon" },
+    { key = "innkeeper", group = "services", name = "Innkeepers", icon = "innkeeper-icon" },
+    { key = "flight", group = "services", name = "Flight Masters", icon = "flight-icon" },
+    { key = "classTrainer", group = "trainers", name = "Class Trainers", icon = "class-icon" },
+}
+browseNS.categoryByKey = {}
+for _, category in ipairs(browseNS.categoryList) do
+    browseNS.categoryByKey[category.key] = category
+end
+browseNS.categoryGroups = {
+    { key = "services", title = "SERVICES", keys = { "vendor", "repair", "innkeeper", "flight" } },
+    { key = "trainers", title = "TRAINERS", keys = { "classTrainer" } },
+}
+local function browseEntry(id, name, sub, categories)
+    return { kind = "npc", id = id, name = name, sub = sub, categories = categories }
+end
+local elwynnVendor = { x = 0.1, y = 0.1, cats = { vendor = true, repair = true }, entries = {
+    browseEntry(1, "Marshal Dughan", "General Goods", { vendor = true, repair = true }),
+} }
+local elwynnInn = { x = 0.2, y = 0.2, cats = { vendor = true, innkeeper = true }, entries = {
+    browseEntry(2, "Bags and Things", "Trade Supplies", { vendor = true }),
+    browseEntry(3, "Sara Timberlain", "Innkeeper", { innkeeper = true }),
+} }
+local westfallFlight = { x = 0.3, y = 0.3, cats = { flight = true }, entries = {
+    browseEntry(4, "Ari the Flight Master", "Flight Master", { flight = true }),
+} }
+local westfallVendor = { x = 0.4, y = 0.4, cats = { vendor = true }, entries = {
+    browseEntry(5, "Aargo", "Trade Supplies", { vendor = true }),
+} }
+browseNS.index = {
+    [10] = { [10001000] = elwynnVendor, [20002000] = elwynnInn },
+    [20] = { [30003000] = westfallFlight, [40004000] = westfallVendor },
+}
+browseNS.ready = false
+local noSections, noMeta = browseNS:BrowseEntries({ maps = { 10 } })
+eq(#noSections, 0, "browse waits for the index")
+eq(noMeta.reason, "index-not-ready", "browse not-ready reason")
+browseNS.ready = true
+
+local sections, mapMeta = browseNS:BrowseEntries({ maps = { 10 } })
+eq(#sections, 5, "browse returns every enabled category section")
+eq(sections[1].key, "vendor", "sections follow category-group order")
+eq(sections[1].group, "services", "section group key")
+eq(sections[1].name, "Vendors", "section display name")
+eq(sections[1].total, 2, "map scope vendor total")
+eq(sections[2].key, "repair", "repair section order")
+eq(sections[2].total, 1, "map scope repair total")
+eq(sections[3].total, 1, "map scope innkeeper total")
+eq(sections[4].total, 0, "empty enabled category kept")
+eq(sections[5].total, 0, "out-of-scope category empty")
+eq(sections[1].rows[1].name, "Bags and Things", "rows sort by name inside a map")
+eq(sections[1].rows[2].name, "Marshal Dughan", "second vendor row")
+eq(sections[2].rows[1].entry.id, 1, "vendor+repair entry appears under repair")
+eq(sections[2].rows[1].node, elwynnVendor, "row keeps its waypoint node")
+eq(sections[1].rows[1].zoneName, "Elwynn Forest", "row zone name")
+eq(sections[1].rows[1].title, "Bags and Things - Trade Supplies", "row title")
+eq(mapMeta.shown, 4, "map scope shown rows")
+eq(mapMeta.capped, false, "map scope not capped")
+
+local setSections = browseNS:BrowseEntries({ maps = { [10] = true } })
+eq(setSections[1].total, 2, "map-set scope accepted")
+
+local vendorOnly = browseNS:BrowseEntries({ maps = { 10 }, categories = { vendor = true, flight = true } })
+eq(#vendorOnly, 2, "disabled categories are omitted entirely")
+eq(vendorOnly[1].key, "vendor", "first surviving category")
+eq(vendorOnly[2].key, "flight", "second surviving category")
+
+local querySections = browseNS:BrowseEntries({ maps = { 10 }, query = "DUGHAN" })
+eq(querySections[1].total, 1, "query matches names case-insensitively")
+eq(querySections[2].total, 1, "query keeps every matching category")
+eq(querySections[3].total, 0, "non-matching category empty")
+local subQuery = browseNS:BrowseEntries({ maps = { 10 }, query = "innkeeper" })
+eq(subQuery[3].total, 1, "query matches sub-names")
+eq(subQuery[1].total, 0, "query excludes non-matching vendors")
+
+local allSections, allMeta = browseNS:BrowseEntries()
+eq(allMeta.shown, 6, "all zones shown rows")
+eq(allMeta.capped, false, "all zones not capped by default")
+eq(#allSections[1].rows, 3, "all zones vendor rows")
+eq(allSections[1].rows[1].zoneName, "Elwynn Forest", "zones sort before names")
+eq(allSections[1].rows[3].name, "Aargo", "later-zone row sorts last despite its name")
+eq(allSections[4].rows[1].entry.id, 4, "cross-zone flight master listed")
+
+local noneSections, noneMeta = browseNS:BrowseEntries({ maps = {} })
+eq(#noneSections, 5, "empty map scope still describes the layout")
+eq(noneMeta.shown, 0, "empty map scope shows nothing")
+
+local cappedSections, cappedMeta = browseNS:BrowseEntries({ limit = 1 })
+eq(cappedMeta.capped, true, "per-category cap flagged")
+eq(cappedSections[1].total, 3, "cap keeps the total count")
+eq(#cappedSections[1].rows, 1, "cap truncates rows")
+eq(cappedSections[1].rows[1].name, "Bags and Things", "cap keeps the first sorted row")
+eq(cappedSections[1].capped, true, "section cap flag")
+
+------------------------------------------------------------------------------------------
 -- Faction filtering
 ------------------------------------------------------------------------------------------
 ns.db = { factionFilter = true }

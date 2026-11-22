@@ -1,15 +1,25 @@
 # Changelog
 
-## Unreleased
+## 1.3.0
 
 World map location browser.
 
-- Add a world map browser panel in the journal theme listing every indexed location, grouped under SERVICES / TRAINERS / OTHER POINTS OF INTEREST with per-category counts, collapsible headers, and a name filter.
+- Add a world map browser panel listing every indexed location, grouped under SERVICES / TRAINERS / OTHER POINTS OF INTEREST with per-category counts, collapsible headers, and a name filter.
+- Redesign the panel as a leather-and-gold drawer docked flush to the map frame's right edge, with segmented "This map" / "All zones" tabs, cream filter input, body-font list rows, category counts, and a styled scrollbar; spacing is fixed so the close button, filter, list, and footer no longer overlap.
+- Keep a round map icon in the top-left stack whenever the panel is closed; left-click toggles the panel and right-click opens the NPC search.
+- Match the icon to Blizzard's map-pin template exactly (25 px medallion, 20 px glyph, 54 px tracking border, HIGH strata) and register it through Questie's Krowi_WorldMapButtons library when present, so the library owns the slot and can never overlap the map pin or Questie's button regardless of load order. A self-anchored fallback stacks under the pin when the library is absent.
+- Add `/fw icon` diagnostics: library mode, every managed button, the icon's anchor chain and screen rect, and any overlapping frame.
+- Unify the window chrome: the same maroon-and-gold close button in the browser, settings, search, and report windows; the map drawer gains a segmented scope bar, a map-name breadcrumb in the header, and a filter placeholder.
+- Fix the panel's close button hiding only itself instead of the panel.
 - "This map" lists the displayed map; "All zones" groups each category by zone and sets waypoints on each location's own map.
 - Left-click a row for a TomTom waypoint; right-click opens/selects that map (combat-guarded). A "Clear waypoint" button clears the last waypoint.
-- The panel follows zone/continent/city map changes and remembers its position, scope, and open state; closing it leaves a tab on the map.
+- The panel follows zone/continent/city map changes and remembers its position, scope, and open state.
 - Add `/fw browse` to open or close the browser and a "Locations panel" checkbox to the Display settings.
-- Validate `browserEnabled` and `browserMode` saved variables on load.
+- Cache one pre-sorted row per indexed entry and share it between search and the browser; rebuilds no longer re-normalize every node on each keystroke or map change.
+- Only cache successful map-name lookups, clamp the browser's per-category limit like search, and stop the panel reopening from a stale position after corrupted saved data.
+- Rebuild the index when the faction filter is toggled or reset, so pins match the setting immediately.
+- Keep the TomTom waypoint handle when a clear fails, verify the serif font fallback, and record interrupted scans separately in `/fw status` diagnostics.
+- Validate `browserEnabled`, `browserMode` and saved window positions on load.
 
 ## 1.2.5
 
@@ -65,6 +75,7 @@ Illustrated-journal interface and a trainer-classification correctness fix.
 - Search results render on parchment with serif NPC names and muted detail lines; filters use cream inputs with gold captions.
 - Fix trainers that ship without the TRAINER npcFlag (notably warlock Demon Trainers): an explicit "trainer" title now classifies them, so they appear as trainer pins instead of vendor-only. Verified against QuestieDB Forever data: four additional genuine trainers, no false positives.
 - Add regression coverage for the title-based trainer fallback and a guard against promoting non-trainer vendors.
+
 ## 1.1.0
 
 NPC discovery and search improvements.

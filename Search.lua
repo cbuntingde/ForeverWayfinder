@@ -6,6 +6,7 @@ local function Contains(haystack, needle)
 end
 
 -- Map names are stable for the life of an index; ResetIndex clears the cache.
+-- Failed lookups are not cached because C_Map may not be ready during load.
 function ns:GetMapName(mapID)
     local cached = self.mapNameCache[mapID]
     if cached then return cached end
@@ -14,10 +15,70 @@ function ns:GetMapName(mapID)
         local ok, info = pcall(C_Map.GetMapInfo, mapID)
         if ok and type(info) == "table" and type(info.name) == "string" then
             name = info.name
+            self.mapNameCache[mapID] = name
         end
     end
-    self.mapNameCache[mapID] = name
     return name
+end
+
+--------------------------------------------------------------------------------------------
+-- Flat entry cache
+--------------------------------------------------------------------------------------------
+
+-- One pre-sorted row per indexed entry. Search and browse both read this, so a
+-- keystroke or panel refresh no longer re-walks every node in the index. The
+-- owner-identity check ties the cache to one index generation.
+function ns:GetIndexedRows()
+    local index = self.index
+    if self.rowCache and self.rowCache.owner == index then return self.rowCache.rows end
+
+    local rows = {}
+    if type(index) == "table" then
+        for mapID, nodes in pairs(index) do
+            if type(mapID) == "number" and type(nodes) == "table" then
+                local mapName = self:GetMapName(mapID)
+                local searchZone = ns.ClassificationNormalizeText(mapName)
+                for coord, node in pairs(nodes) do
+                    if type(node) == "table" and type(node.entries) == "table" then
+                        for entryIndex = 1, #node.entries do
+                            local entry = node.entries[entryIndex]
+                            if type(entry) == "table" then
+                                local name = entry.searchName or ns.ClassificationNormalizeText(entry.name)
+                                local sub = entry.searchSub or ns.ClassificationNormalizeText(entry.sub)
+                                local display = type(entry.name) == "string" and entry.name ~= ""
+                                    and entry.name or "Unknown NPC"
+                                local title = display
+                                if type(entry.sub) == "string" and entry.sub ~= "" then
+                                    title = display .. " - " .. entry.sub
+                                end
+                                rows[#rows + 1] = {
+                                    mapID = mapID, coord = coord, node = node, entry = entry,
+                                    mapName = mapName, searchZone = searchZone,
+                                    searchName = name, searchSub = sub,
+                                    name = display, sub = entry.sub, title = title,
+                                    categories = entry.categories,
+                                    allCategories = type(entry.categories) == "table"
+                                        and entry.categories or node.cats,
+                                    sortName = name, sortSub = sub,
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    table.sort(rows, function(a, b)
+        if a.sortName ~= b.sortName then return a.sortName < b.sortName end
+        if a.sortSub ~= b.sortSub then return a.sortSub < b.sortSub end
+        if a.mapID ~= b.mapID then return a.mapID < b.mapID end
+        if a.coord ~= b.coord then return a.coord < b.coord end
+        return (a.entry.id or 0) < (b.entry.id or 0)
+    end)
+
+    self.rowCache = { owner = index, rows = rows }
+    return rows
 end
 
 function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
@@ -48,61 +109,43 @@ function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
         end
     end
 
+    local rows = self:GetIndexedRows()
     local results = {}
-    for mapID, nodes in pairs(self.index) do
-        local mapName = self:GetMapName(mapID)
+    for index = 1, #rows do
+        local row = rows[index]
         local zoneMatches = zoneFilter == ""
-            or (exactMapID and mapID == numericZoneID)
-            or (not exactMapID and Contains(ns.ClassificationNormalizeText(mapName), zoneFilter))
+            or (exactMapID and row.mapID == numericZoneID)
+            or (not exactMapID and Contains(row.searchZone, zoneFilter))
 
-        if zoneMatches and type(nodes) == "table" then
-            for coord, node in pairs(nodes) do
-                if type(node) == "table" and type(node.entries) == "table" then
-                    for index = 1, #node.entries do
-                        local entry = node.entries[index]
-                        if type(entry) == "table" then
-                            -- Index-time normalized text keeps broad queries cheap; the
-                            -- fallback covers entries built without it.
-                            local name = entry.searchName or ns.ClassificationNormalizeText(entry.name)
-                            local sub = entry.searchSub or ns.ClassificationNormalizeText(entry.sub)
-                            local textMatches = query == "" or Contains(name, query) or Contains(sub, query)
-                            local categoryMatches = categoryFilter == ""
-                            local matchedCategory = nil
+        if zoneMatches then
+            local textMatches = query == "" or Contains(row.searchName, query)
+                or Contains(row.searchSub, query)
+            local categoryMatches = categoryFilter == ""
+            local matchedCategory = nil
 
-                            if not categoryMatches then
-                                for key in pairs(entry.categories or {}) do
-                                    local names = categoryNames[key]
-                                    if names and (Contains(names.key, categoryFilter)
-                                        or Contains(names.name, categoryFilter)) then
-                                        categoryMatches = true
-                                        matchedCategory = key
-                                        break
-                                    end
-                                end
-                            end
-
-                            if textMatches and categoryMatches then
-                                results[#results + 1] = {
-                                    entry = entry, node = node, mapID = mapID, coord = coord,
-                                    mapName = mapName, matchedCategory = matchedCategory,
-                                    sortName = name, sortSub = sub,
-                                }
-                            end
-                        end
+            if not categoryMatches then
+                for key in pairs(row.categories or {}) do
+                    local names = categoryNames[key]
+                    if names and (Contains(names.key, categoryFilter)
+                        or Contains(names.name, categoryFilter)) then
+                        categoryMatches = true
+                        matchedCategory = key
+                        break
                     end
                 end
+            end
+
+            if textMatches and categoryMatches then
+                results[#results + 1] = {
+                    entry = row.entry, node = row.node, mapID = row.mapID, coord = row.coord,
+                    mapName = row.mapName, matchedCategory = matchedCategory,
+                    sortName = row.searchName, sortSub = row.searchSub,
+                }
             end
         end
     end
 
-    table.sort(results, function(a, b)
-        if a.sortName ~= b.sortName then return a.sortName < b.sortName end
-        if a.sortSub ~= b.sortSub then return a.sortSub < b.sortSub end
-        if a.mapID ~= b.mapID then return a.mapID < b.mapID end
-        if a.coord ~= b.coord then return a.coord < b.coord end
-        return (a.entry.id or 0) < (b.entry.id or 0)
-    end)
-
+    -- The cache is already in search order; only the per-query limit remains.
     while #results > limit do results[#results] = nil end
     return results
 end
@@ -128,7 +171,7 @@ function ns:BrowseEntries(options)
     if type(options) ~= "table" then options = {} end
 
     local query = ns.ClassificationNormalizeText(options.query)
-    local limit = ns.ClassificationIsPositiveInteger(options.limit) and options.limit or 100
+    local limit = ns.ClassificationIsPositiveInteger(options.limit) and math.min(options.limit, 200) or 100
     local enabled = type(options.categories) == "table" and options.categories or nil
 
     local mapScope
@@ -175,52 +218,39 @@ function ns:BrowseEntries(options)
         end
     end
 
-    local function ScanMap(mapID, nodes)
-        local mapName = self:GetMapName(mapID)
-        for coord, node in pairs(nodes) do
-            if type(node) == "table" and type(node.entries) == "table" then
-                for index = 1, #node.entries do
-                    local entry = node.entries[index]
-                    if type(entry) == "table" then
-                        local name = entry.searchName or ns.ClassificationNormalizeText(entry.name)
-                        local sub = entry.searchSub or ns.ClassificationNormalizeText(entry.sub)
-                        if query == "" or Contains(name, query) or Contains(sub, query) then
-                            local cats = type(entry.categories) == "table" and entry.categories or node.cats
-                            if type(cats) == "table" then
-                                for key in pairs(cats) do
-                                    local section = sectionByKey[key]
-                                    if section then
-                                        local display = type(entry.name) == "string" and entry.name ~= ""
-                                            and entry.name or "Unknown NPC"
-                                        local title = display
-                                        if type(entry.sub) == "string" and entry.sub ~= "" then
-                                            title = display .. " - " .. entry.sub
-                                        end
-                                        section.rows[#section.rows + 1] = {
-                                            key = key, mapID = mapID, coord = coord,
-                                            node = node, entry = entry,
-                                            name = display, sub = entry.sub, title = title,
-                                            zoneName = mapName,
-                                            sortName = name, sortSub = sub,
-                                        }
-                                    end
-                                end
-                            end
+    local singleZone = nil
+    if mapScope then
+        local mapCount = 0
+        for _ in pairs(mapScope) do mapCount = mapCount + 1 end
+        singleZone = mapCount == 1
+    end
+
+    local rows = self:GetIndexedRows()
+    for index = 1, #rows do
+        local row = rows[index]
+        local inScope = not mapScope or mapScope[row.mapID] == true
+        if inScope and (query == "" or Contains(row.searchName, query)
+            or Contains(row.searchSub, query)) then
+            local cats = row.allCategories
+            if type(cats) == "table" then
+                for key in pairs(cats) do
+                    local section = sectionByKey[key]
+                    if section then
+                        section.total = section.total + 1
+                        -- Within one map the cache order already equals the
+                        -- display order, so only the capped rows need tables.
+                        if not singleZone or #section.rows < limit then
+                            section.rows[#section.rows + 1] = {
+                                key = key, mapID = row.mapID, coord = row.coord,
+                                node = row.node, entry = row.entry,
+                                name = row.name, sub = row.sub, title = row.title,
+                                zoneName = row.mapName,
+                                sortName = row.searchName, sortSub = row.searchSub,
+                            }
                         end
                     end
                 end
             end
-        end
-    end
-
-    if mapScope then
-        for mapID in pairs(mapScope) do
-            local nodes = self.index[mapID]
-            if type(nodes) == "table" then ScanMap(mapID, nodes) end
-        end
-    else
-        for mapID, nodes in pairs(self.index) do
-            if type(mapID) == "number" and type(nodes) == "table" then ScanMap(mapID, nodes) end
         end
     end
 
@@ -236,10 +266,14 @@ function ns:BrowseEntries(options)
     local shown, capped = 0, false
     for index = 1, #sections do
         local section = sections[index]
-        table.sort(section.rows, LessRow)
-        section.total = #section.rows
+        if not singleZone then
+            table.sort(section.rows, LessRow)
+            section.total = #section.rows
+        end
         if section.total > limit then
-            for rowIndex = section.total, limit + 1, -1 do section.rows[rowIndex] = nil end
+            if not singleZone then
+                for rowIndex = section.total, limit + 1, -1 do section.rows[rowIndex] = nil end
+            end
             section.capped = true
             capped = true
         end
@@ -327,9 +361,8 @@ function ns:CreateSearchUI()
     local title = Journal.Text(frame, 20, "Wayfinder Search", ns.Colors.gold)
     title:SetPoint("TOPLEFT", 54, -24)
 
-    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -8, -8)
-    close:SetScript("OnClick", function() frame:Hide() end)
+    local close = Journal.CloseButton(frame, function() frame:Hide() end)
+    close:SetPoint("TOPRIGHT", -14, -16)
 
     frame.queryInput = CreateFilter(frame, "NPC NAME", 24, -72, 250)
     frame.categoryInput = CreateFilter(frame, "CATEGORY", 292, -72, 140)
@@ -338,7 +371,7 @@ function ns:CreateSearchUI()
     frame.categoryInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     frame.zoneInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 
-    frame.status = Journal.Text(frame, 13, "Enter a name, category, or zone to search.", ns.Colors.muted, "LEFT")
+    frame.status = Journal.Body(frame, 13, "Enter a name, category, or zone to search.", ns.Colors.muted, "LEFT")
     frame.status:SetPoint("TOPLEFT", 24, -128)
     frame.status:SetWidth(SEARCH_WIDTH - 48)
 
@@ -398,10 +431,10 @@ function ns:CreateSearchUI()
                     row.background = Journal.Solid(row, ns.Colors.pageHover)
                     row.background:SetAllPoints()
                     row.background:SetAlpha(0)
-                    row.name = Journal.Text(row, 15, "", ns.Colors.ink, "LEFT")
+                    row.name = Journal.Body(row, 15, "", ns.Colors.ink, "LEFT")
                     row.name:SetPoint("TOPLEFT", 9, -7)
                     row.name:SetPoint("TOPRIGHT", -8, -7)
-                    row.detail = Journal.Text(row, 12, "", ns.Colors.inkMuted, "LEFT")
+                    row.detail = Journal.Body(row, 12, "", ns.Colors.inkMuted, "LEFT")
                     row.detail:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -4)
                     row.detail:SetPoint("TOPRIGHT", -8, -27)
                     row:SetScript("OnEnter", function(self) self.background:SetAlpha(1) end)
@@ -439,7 +472,8 @@ function ns:CreateSearchUI()
                 frame.status:SetText("No matching NPCs or service locations.")
             else
                 frame.status:SetFormattedText("%d result%s%s", #results,
-                    #results == 1 and "" or "s", #results == RESULT_LIMIT and " · showing first 100" or "")
+                    #results == 1 and "" or "s",
+                    #results == RESULT_LIMIT and (" · showing first " .. RESULT_LIMIT) or "")
             end
         end
 

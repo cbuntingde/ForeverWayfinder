@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 ns.PLUGIN = "ForeverWayfinder"
-ns.VERSION = "1.2.5"
+ns.VERSION = "1.3.0"
 ns.PREFIX = "|cffd4af37Forever Wayfinder|r"
 
 local floor = math.floor
@@ -24,6 +24,7 @@ ns.MEDIA = {
     sliderThumb = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
     minimapBg = "Interface\\Minimap\\UI-Minimap-Background",
     minimapHighlight = "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight",
+    trackingBorder = "Interface\\Minimap\\MiniMap-TrackingBorder",
     addonIcon = "Interface\\Icons\\INV_Misc_Map_01",
 }
 
@@ -54,8 +55,12 @@ function Journal.Font(size, outline)
     local key = size .. ":" .. (outline or "")
     if not fontCache[key] then
         local font = CreateFont("ForeverWayfinderJournal" .. key:gsub("%W", "_"))
-        if not font:SetFont("Fonts\\MORPHEUS.TTF", size, outline or "") then
-            font:SetFont(STANDARD_TEXT_FONT, size, outline or "")
+        -- SetFont's return value and failure behaviour vary between client
+        -- builds, so verify the face the object actually holds afterwards.
+        local ok = pcall(font.SetFont, font, "Fonts\\MORPHEUS.TTF", size, outline or "")
+        local path = font.GetFont and font:GetFont()
+        if not ok or type(path) ~= "string" or not path:lower():find("morpheus", 1, true) then
+            pcall(font.SetFont, font, STANDARD_TEXT_FONT, size, outline or "")
         end
         fontCache[key] = font
     end
@@ -65,6 +70,17 @@ end
 function Journal.Text(parent, size, text, color, justify)
     local fs = parent:CreateFontString(nil, "OVERLAY")
     fs:SetFontObject(Journal.Font(size))
+    fs:SetText(text or "")
+    if color then fs:SetTextColor(color[1], color[2], color[3]) end
+    if justify then fs:SetJustifyH(justify) end
+    return fs
+end
+
+-- List copy uses the client's own UI face: the serif display face loses
+-- legibility at list sizes, so it stays reserved for headings.
+function Journal.Body(parent, size, text, color, justify)
+    local fs = parent:CreateFontString(nil, "OVERLAY")
+    fs:SetFont(STANDARD_TEXT_FONT, size, "")
     fs:SetText(text or "")
     if color then fs:SetTextColor(color[1], color[2], color[3]) end
     if justify then fs:SetJustifyH(justify) end
@@ -146,11 +162,15 @@ function Journal.Button(parent, text, width, onClick)
     button.label = Journal.Text(button, 14, text, ns.Colors.gold)
     button.label:SetPoint("CENTER")
     button:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(ns.Colors.maroonHover[1], ns.Colors.maroonHover[2], ns.Colors.maroonHover[3], 1)
+        if self.SetBackdropColor then
+            self:SetBackdropColor(ns.Colors.maroonHover[1], ns.Colors.maroonHover[2], ns.Colors.maroonHover[3], 1)
+        end
         self.label:SetTextColor(ns.Colors.brightGold[1], ns.Colors.brightGold[2], ns.Colors.brightGold[3])
     end)
     button:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(ns.Colors.maroon[1], ns.Colors.maroon[2], ns.Colors.maroon[3], 1)
+        if self.SetBackdropColor then
+            self:SetBackdropColor(ns.Colors.maroon[1], ns.Colors.maroon[2], ns.Colors.maroon[3], 1)
+        end
         self.label:SetTextColor(ns.Colors.gold[1], ns.Colors.gold[2], ns.Colors.gold[3])
     end)
     button:SetScript("OnClick", onClick)
@@ -253,6 +273,28 @@ function Journal.Input(parent, width, height)
     input:SetTextInsets(8, 8, 0, 0)
     input:SetMaxLetters(80)
     return input
+end
+
+-- Maroon lacquer square with a gold glyph, shared by every window so the map
+-- drawer, settings and search all close with the same control.
+function Journal.CloseButton(parent, onClick)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(18, 18)
+    button.fill = Solid(button, ns.Colors.maroon)
+    button.fill:SetAllPoints()
+    button.mark = Journal.Text(button, 11, "X", ns.Colors.gold)
+    button.mark:SetPoint("CENTER", 0, 1)
+    button:SetScript("OnEnter", function(self)
+        self.fill:SetColorTexture(ns.Colors.maroonHover[1], ns.Colors.maroonHover[2],
+            ns.Colors.maroonHover[3], 1)
+        self.mark:SetTextColor(ns.Colors.brightGold[1], ns.Colors.brightGold[2], ns.Colors.brightGold[3])
+    end)
+    button:SetScript("OnLeave", function(self)
+        self.fill:SetColorTexture(ns.Colors.maroon[1], ns.Colors.maroon[2], ns.Colors.maroon[3], 1)
+        self.mark:SetTextColor(ns.Colors.gold[1], ns.Colors.gold[2], ns.Colors.gold[3])
+    end)
+    button:SetScript("OnClick", onClick)
+    return button
 end
 
 --------------------------------------------------------------------------------------------
@@ -383,14 +425,16 @@ function ns:ShowCopyableReport(title, lines)
         frame:RegisterForDrag("LeftButton")
         frame:SetScript("OnDragStart", frame.StartMoving)
         frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
-        frame:SetBackdrop({
-            bgFile = "Interface\\Buttons\\WHITE8X8",
-            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-            tile = true, tileSize = 16, edgeSize = 16,
-            insets = { left = 4, right = 4, top = 4, bottom = 4 },
-        })
-        frame:SetBackdropColor(0.04, 0.035, 0.025, 0.98)
-        frame:SetBackdropBorderColor(0.55, 0.44, 0.23, 1)
+        if frame.SetBackdrop then
+            frame:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8X8",
+                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                tile = true, tileSize = 16, edgeSize = 16,
+                insets = { left = 4, right = 4, top = 4, bottom = 4 },
+            })
+            frame:SetBackdropColor(0.04, 0.035, 0.025, 0.98)
+            frame:SetBackdropBorderColor(0.55, 0.44, 0.23, 1)
+        end
 
         local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
         heading:SetPoint("TOPLEFT", 18, -16)
@@ -401,8 +445,8 @@ function ns:ShowCopyableReport(title, lines)
         instructions:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -7)
         instructions:SetText("Click the report, press Ctrl+A, then Ctrl+C to copy. Press Esc to close.")
 
-        local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-        close:SetPoint("TOPRIGHT", -4, -4)
+        local close = Journal.CloseButton(frame, function() frame:Hide() end)
+        close:SetPoint("TOPRIGHT", -10, -12)
 
         local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
         scroll:SetPoint("TOPLEFT", 18, -76)
@@ -492,6 +536,27 @@ end
 -- Saved variables
 --------------------------------------------------------------------------------------------
 
+local VALID_POSITION_ANCHORS = {
+    TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
+    RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
+}
+
+-- Normalises a saved window position, or returns nil when the table is
+-- corrupted. Shared by the settings window and the map browser.
+function ns:ValidateSavedPosition(position)
+    if type(position) ~= "table" or not VALID_POSITION_ANCHORS[position.point] then return nil end
+    local x, y = position.x, position.y
+    if type(x) ~= "number" or x ~= x or x == math.huge or x == -math.huge then return nil end
+    if type(y) ~= "number" or y ~= y or y == math.huge or y == -math.huge then return nil end
+    return {
+        point = position.point,
+        relativePoint = VALID_POSITION_ANCHORS[position.relativePoint] and position.relativePoint or position.point,
+        x = x,
+        y = y,
+        relative = position.relative == "ui" and "ui" or "frame",
+    }
+end
+
 function ns:InitDB()
     if type(ForeverWayfinderDB) ~= "table" then ForeverWayfinderDB = {} end
     local db = ForeverWayfinderDB
@@ -523,20 +588,8 @@ function ns:InitDB()
     else
         db.minimapAngle = db.minimapAngle % 360
     end
-    local validAnchors = {
-        TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
-        RIGHT = true, BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true,
-    }
-    local position = db.uiPosition
-    if type(position) ~= "table" or not validAnchors[position.point]
-        or type(position.x) ~= "number" or type(position.y) ~= "number"
-        or position.x ~= position.x or position.y ~= position.y
-        or position.x == math.huge or position.x == -math.huge
-        or position.y == math.huge or position.y == -math.huge then
-        db.uiPosition = nil
-    elseif not validAnchors[position.relativePoint] then
-        position.relativePoint = position.point
-    end
+    db.uiPosition = self:ValidateSavedPosition(db.uiPosition)
+    db.browserPosition = self:ValidateSavedPosition(db.browserPosition)
     if type(db.schemaVersion) ~= "number" or db.schemaVersion ~= db.schemaVersion
         or db.schemaVersion == math.huge or db.schemaVersion == -math.huge
         or db.schemaVersion < 1 or db.schemaVersion % 1 ~= 0 then
@@ -547,8 +600,9 @@ end
 
 function ns:ResetSettings()
     local db = self.db
+    local refilter = db.factionFilter ~= self.defaults.factionFilter
     for key in pairs(db) do
-        if key ~= "uiPosition" and key ~= "minimapAngle" then
+        if key ~= "uiPosition" and key ~= "minimapAngle" and key ~= "browserPosition" then
             db[key] = nil
         end
     end
@@ -558,6 +612,9 @@ function ns:ResetSettings()
     db.schemaVersion = 1
     self:Refresh()
     if self.UpdateUI then self:UpdateUI() end
+    -- Faction filtering happens while indexing, so rebuild when the reset
+    -- changed it and pins would otherwise keep the old filter.
+    if refilter and self.StartScan then self:StartScan() end
     self:Print("Settings reset to defaults.")
 end
 
@@ -634,6 +691,7 @@ local function PrintHelp()
     ns:Print("  /fw browse - open or close the world map location browser (this map or all zones)")
     ns:Print("  /fw clear - clear the last Forever Wayfinder waypoint")
     ns:Print("  /fw status - show index statistics")
+    ns:Print("  /fw icon - diagnose the world map icon stack and spacing")
     ns:Print("  /fw map - diagnose map pins for the current map")
 end
 
@@ -719,8 +777,20 @@ local function HandleSlash(message)
                         index, item.kind, tostring(item.id), item.message))
                 end
             end
+            if ns.cancelledScan then
+                ReportLine(("Interrupted scan: %s after %.3fs."):format(
+                    ns.cancelledScan.state, ns.cancelledScan.duration or 0))
+            end
         end
         ns:ShowCopyableReport("Forever Wayfinder - Status", lines)
+    elseif message == "icon" then
+        local browser = ns.browser
+        if not browser or not browser.DescribeIcon then
+            ns:Print("Open the world map once, then run /fw icon again.")
+            return
+        end
+        local lines = browser:DescribeIcon()
+        for _, line in ipairs(lines) do ns:Print(line) end
     elseif message == "map" then
         local lines = {}
         local function ReportLine(msg)

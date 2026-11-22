@@ -40,9 +40,10 @@ function Waypoints:ClearLast()
         return false, "TomTom is not installed; waypoint navigation is unavailable."
     end
     local ok = pcall(TomTom.RemoveWaypoint, TomTom, self.lastWaypoint)
-    self.lastWaypoint = nil
     if not ok then
+        -- Keep the handle: TomTom still owns that waypoint, so a retry can clear it.
         return false, "TomTom could not clear the waypoint."
     end
+    self.lastWaypoint = nil
     return true
 end

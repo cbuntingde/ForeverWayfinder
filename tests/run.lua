@@ -166,6 +166,14 @@ local partialMapID = ns:SearchEntries("", "", "10")
 eq(#partialMapID, 0, "numeric zone filter does not substring-match other map IDs")
 local limited = ns:SearchEntries("vendor", "", "", 1)
 eq(#limited, 1, "search result limit")
+local originalIndex = ns.index
+local indexedRows = ns:GetIndexedRows()
+eq(ns:GetIndexedRows(), indexedRows, "indexed rows are cached per index")
+ns.index = { [300] = {} }
+local rebuiltRows = ns:GetIndexedRows()
+assert(rebuiltRows ~= indexedRows, "cache invalidated when the index is replaced")
+eq(#rebuiltRows, 0, "rebuilt cache reflects the new index")
+ns.index = originalIndex
 
 ------------------------------------------------------------------------------------------
 -- Browse entries: category grouping, scope, filters, deterministic caps
@@ -273,6 +281,14 @@ eq(#cappedSections[1].rows, 1, "cap truncates rows")
 eq(cappedSections[1].rows[1].name, "Bags and Things", "cap keeps the first sorted row")
 eq(cappedSections[1].capped, true, "section cap flag")
 
+local mapCapped = browseNS:BrowseEntries({ maps = { 10 }, limit = 1 })
+eq(mapCapped[1].total, 2, "single-map cap counts every match")
+eq(#mapCapped[1].rows, 1, "single-map cap collects only the kept row")
+eq(mapCapped[1].rows[1].name, "Bags and Things", "single-map cap keeps the cache-sorted first row")
+eq(mapCapped[1].capped, true, "single-map cap flagged")
+eq(mapCapped[2].total, 1, "single-map cap keeps the repair total")
+eq(#mapCapped[2].rows, 1, "single-map repair row kept")
+
 ------------------------------------------------------------------------------------------
 -- Faction filtering
 ------------------------------------------------------------------------------------------
@@ -365,6 +381,16 @@ wpOk = ns.Waypoints:ClearLast()
 eq(wpOk, true, "clear last waypoint")
 eq(removed[1], 100, "clear removes the created waypoint")
 eq(ns.Waypoints:ClearLast(), false, "clear with no waypoint reports honestly")
+TomTom.AddWaypoint = function() return 200 end
+TomTom.RemoveWaypoint = function() error("remove exploded") end
+eq(ns.Waypoints:Set(100, 0.5, 0.5, "Retry"), true, "waypoint for retry")
+wpOk, wpReason = ns.Waypoints:ClearLast()
+eq(wpOk, false, "remove failure reported")
+assert(type(wpReason) == "string", "remove failure reason surfaced")
+eq(ns.Waypoints.lastWaypoint, 200, "handle kept after a failed clear")
+TomTom.RemoveWaypoint = function() return true end
+eq(ns.Waypoints:ClearLast(), true, "retry clears the retained waypoint")
+eq(ns.Waypoints.lastWaypoint, nil, "handle cleared after success")
 TomTom.AddWaypoint = function() error("provider exploded") end
 wpOk, wpReason = ns.Waypoints:Set(100, 0.5, 0.5, "Test")
 eq(wpOk, false, "provider error contained")
@@ -386,6 +412,7 @@ ForeverWayfinderDB = {
     enabled = "yes", pinScale = 99, minimapAngle = 0 / 0, schemaVersion = "x",
     categories = { vendor = "nope", repair = false },
     uiPosition = { point = "BAD", x = 1, y = 2 },
+    browserPosition = { point = "TOPRIGHT", x = 0 / 0, y = 0 },
     customKey = "keep",
 }
 coreNS:InitDB()
@@ -397,20 +424,24 @@ eq(sv.schemaVersion, 1, "invalid schema version reset")
 eq(sv.categories.vendor, true, "invalid category restored to default")
 eq(sv.categories.repair, false, "valid category preserved")
 eq(sv.uiPosition, nil, "invalid anchor dropped")
+eq(sv.browserPosition, nil, "invalid browser position dropped")
 eq(sv.customKey, "keep", "unknown user key preserved")
 ForeverWayfinderDB = {
     pinScale = 0.1, minimapAngle = 400,
     uiPosition = { point = "CENTER", x = 10, y = 20 },
+    browserPosition = { point = "TOPLEFT", relativePoint = "TOPRIGHT", x = -20, y = -30, relative = "ui" },
 }
 coreNS:InitDB()
 eq(coreNS.db.pinScale, 0.5, "pin scale clamped to minimum")
 eq(coreNS.db.minimapAngle, 40, "angle wrapped into range")
 eq(coreNS.db.uiPosition.relativePoint, "CENTER", "missing relativePoint defaulted")
+eq(coreNS.db.browserPosition.relative, "ui", "browser position relative parent preserved")
 coreNS.db.categories.vendor = false
 coreNS:ResetSettings()
 eq(coreNS.db.categories.vendor, true, "reset restores category defaults")
 eq(coreNS.db.uiPosition.x, 10, "reset preserves frame position")
 eq(coreNS.db.minimapAngle, 40, "reset preserves minimap angle")
+eq(coreNS.db.browserPosition.x, -20, "reset preserves browser position")
 eq(coreNS.db.schemaVersion, 1, "reset keeps schema version")
 eq(coreNS.db.customKey, nil, "reset clears unknown keys by design")
 

@@ -48,9 +48,8 @@ function ns:CreateUI()
     local subtitle = Journal.Text(frame, 13, "Vendors · Trainers · Services", ns.Colors.muted)
     subtitle:SetPoint("TOPLEFT", 59, -48)
 
-    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -8, -8)
-    close:SetScript("OnClick", function() frame:Hide() end)
+    local close = Journal.CloseButton(frame, function() frame:Hide() end)
+    close:SetPoint("TOPRIGHT", -14, -16)
 
     local page = Journal.Page(frame, 16, -76, -16, 84)
 
@@ -92,7 +91,12 @@ function ns:CreateUI()
         local key = toggle.key
         frame.toggleRows[key] = Journal.CheckRow(page, x, rowY, ROW_WIDTH, ROW_HEIGHT, toggle.label, nil,
             function() return ns.db[key] end,
-            function(value) ns.db[key] = value end)
+            function(value)
+                ns.db[key] = value
+                -- Faction filtering is applied while indexing, so pins only
+                -- reflect the toggle after a rebuild.
+                if key == "factionFilter" then ns:StartScan() end
+            end)
     end
 
     local minimapRowY = y - math.ceil(#toggles / 2) * ROW_HEIGHT

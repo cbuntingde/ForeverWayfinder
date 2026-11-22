@@ -1,6 +1,6 @@
 # World Map Location Browser — Design
 
-**Status:** Phases A-C implemented (data layer, panel with this-map and all-zones scopes, settings and slash wiring); in-game geometry and map-change verification remain
+**Status:** Phases A-C implemented and the panel redesigned to match the map frame (2026-11-22); in-game visual geometry and map-change verification remain
 **Date:** 2026-11-22  
 **Scope:** Forever Wayfinder 1.3.x  
 **Tracking issue:** the GitHub issue that links this document
@@ -32,12 +32,12 @@ No new data or indexing work is required. The browser is a second view over `ns.
 
 ## 3. Proposal
 
-A panel docked to the right edge of `WorldMapFrame`, rendered in the existing journal theme, listing indexed locations with a category-grouped, collapsible list. Left-click a row to create a TomTom waypoint; right-click to open/centre that map.
+A panel docked to the right edge of `WorldMapFrame`, styled as a dark leather-and-gold drawer that matches the map chrome: serif gold section headings, UI-face rows on a dark inset, a cream filter field, and a segmented scope control. Left-click a row to create a TomTom waypoint; right-click to open/centre that map.
 
 ### 3.1 Placement and lifecycle
 
-- Panel is a child of `WorldMapFrame`, anchored `TOPLEFT` to the map canvas's `TOPRIGHT` (offset ~8 px) when the frame leaves room; otherwise it anchors inside the map frame's right edge (24 px inset, 90 px down) so it never lands offscreen. Height is clamped to 320–640 px.
-- A small tab/button on the map frame's right edge toggles the panel. State persists as `db.browserEnabled`.
+- Panel is a child of `WorldMapFrame`, docked inside the frame's right edge at `TOPRIGHT(-14, -56)` so it sits flush with the map chrome instead of floating over it. Height follows the frame (420–880 px, 96 px of vertical breathing room).
+- A round, Questie-style icon in the map's top-left icon stack toggles the panel and stays on the map whenever it is closed. Its geometry copies Blizzard's `WorldMapTrackingPinButtonTemplate` (25 px medallion, 20 px glyph, 54 px tracking border, HIGH strata). When Questie's Krowi_WorldMapButtons library is present the icon is registered through `lib:Add`, so the library owns its stack slot and reflows it with the map pin and Questie's button on every map change; a self-anchored fallback stacks under Blizzard's pin when the library is absent. Left-click toggles the panel; right-click opens the NPC search window. State persists as `db.browserEnabled`. `/fw icon` reports the library mode, managed buttons, anchor chain, screen rect and any overlap.
 - Shown only while the world map is shown and the index is ready; hidden with the map.
 - Displayed map ID: `WorldMapFrame:GetMapID()`, falling back to `C_Map.GetBestMapForUnit("player")`. Both wrapped in `pcall`.
 - Refresh triggers:
@@ -52,7 +52,7 @@ A panel docked to the right edge of `WorldMapFrame`, rendered in the existing jo
 
 - **This map (default):** lists entries whose `mapID` equals the displayed map. No parent/continent fallback — an empty result shows "No indexed locations on this map". This avoids dumping a whole continent list onto a map that simply has no indexed data.
 - **All zones:** lists every indexed map, grouped category → zone → location, with a zone subheader before each run of rows. Intended for cross-zone planning; waypoints are set with the node's own `mapID`, which TomTom accepts across zones.
-- The two scope buttons ("This map" / "All zones") sit above the filter and persist the choice as `db.browserMode`.
+- The two scope buttons ("This map" / "All zones") are a segmented control above the filter and persist the choice as `db.browserMode`.
 - Continent aggregation (`db.showOnContinent`) does not affect the browser; it stays a pin-display option.
 
 ### 3.3 Grouping and sorting
@@ -87,7 +87,7 @@ A single text input above the list filters the current mode by NPC name or sub-n
 ## 4. Implementation plan
 
 1. **Pure data layer (testable, no WoW API).** Add `ns:BrowseEntries(options)` in `Search.lua` next to `SearchEntries`: input `{ maps = { id, ... } | nil (all), query = "", categories = db.categories, limit = 100 }`; output sections in category-group order, each with `{ key, group, name, icon, total, capped, rows }` where rows carry `{ mapID, coord, node, entry, name, sub, title, zoneName }`, plus meta `{ shown, capped }`. Reuse `GetMapName` and normalized `searchName`/`searchSub`. Unit tests in `tests/run.lua` in the existing style (Lua 5.1, no client APIs).
-2. **Panel UI.** New `Browser.lua`: map-frame anchor, toggle tab, header, filter input, scroll frame with lazily created rows (same pattern as `Search.lua:246`), section headers, footer, map-change hooks, debounced refresh. Load after `Search.lua` in the TOC.
+2. **Panel UI.** New `Browser.lua`: map-frame anchor, top-left toggle icon, header, filter input, scroll frame with lazily created rows (same pattern as `Search.lua:246`), section headers, footer, map-change hooks, debounced refresh. Load after `Search.lua` in the TOC.
 3. **Wiring.** `Core.lua`: defaults `browserEnabled = true`, `browserMode = "map"`; `/fw browse` in `HandleSlash` and `PrintHelp`; call the browser refresh from `ns:Refresh()`. `UI.lua`: "World map browser" checkbox in the Display section.
 4. **Tests and docs.** Extend `tests/run.lua` for grouping, multi-category membership, scope filtering, caps and sort order; update `README.md` usage/features; add a `CHANGELOG.md` entry.
 
@@ -95,11 +95,12 @@ Suggested phases: (A) `BrowseEntries` + tests, (B) panel with this-map mode, (C)
 
 ## 5. Performance
 
+- `ns:GetIndexedRows()` builds one flat, pre-sorted row per indexed entry and shares it between search and browse. The cache is tied to the current `ns.index` table by identity and cleared in `ResetIndex`, so a keystroke or map change filters an existing list instead of re-normalizing every node.
 - Rows are created on demand and reused; hidden overflow rows are kept, as in the search window.
-- Hard caps: 100 rows per category in both modes, applied after sorting so the kept rows are deterministic, with a "narrow with the filter" note when clamped. Collapsed sections need not render their rows.
-- `GetMapName` results are cached in `ns.mapNameCache`.
+- Hard caps: 100 rows per category in both modes, applied after sorting so the kept rows are deterministic, with a "capped" note when clamped. In single-map scope the cache order already matches display order, so only the kept rows are allocated while the exact total is still counted.
+- `GetMapName` results are cached in `ns.mapNameCache`, and failed lookups are not cached so a not-yet-ready `C_Map` cannot poison the names.
 - The only per-frame work while the panel is visible is the 0.25 s map-ID comparison.
-- A rebuild walks only the nodes of the relevant maps; it never scans the full index in map mode.
+- A rebuild filters the flat row cache by scope; it does not traverse other maps' node tables or repeat category normalization.
 
 ## 6. Risks and open questions
 
@@ -118,7 +119,7 @@ Suggested phases: (A) `BrowseEntries` + tests, (B) panel with this-map mode, (C)
 5. "All zones" lists cross-zone locations grouped by category then zone, and waypoints resolve on the node's own map.
 6. Indexing and disabled states render without Lua errors; no rows are shown before `ns.ready`.
 7. The panel follows map changes and its visibility survives `/reload` via `db.browserEnabled`.
-8. `lua5.1 tests/run.lua` and `lua5.1 tests/search_ui.lua` pass, including new browse tests.
+8. `lua5.1 tests/run.lua`, `lua5.1 tests/search_ui.lua` and `lua5.1 tests/browser_ui.lua` pass, including the browse tests.
 9. `/fw browse` toggles the panel; README, CHANGELOG and TOC are updated.
 
 ## 8. Out of scope

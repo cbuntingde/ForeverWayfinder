@@ -160,6 +160,7 @@ function ns:ResetIndex()
     self.index = {}
     self.descCache = {}
     self.mapNameCache = {}
+    self.rowCache = nil
     self.stat = {
         nodes = 0, mapCount = 0, npcs = 0, objects = 0,
         invalidRecords = 0, invalidSpawns = 0, unavailablePositions = 0,
@@ -477,6 +478,7 @@ function ns:ScanStep()
         self.stat.mapCount = count
         self.scan = nil
         self.ready = true
+        self.cancelledScan = nil
         self.lastScan = {
             state = "complete", duration = GetTime() - scan.startedAt,
             enumerationDuration = scan.enumerationDuration,
@@ -505,7 +507,9 @@ function ns:StartScan()
     local generation = self.scanGeneration
     if self.scanTicker then self.scanTicker:Cancel(); self.scanTicker = nil end
     if self.scan then
-        self.lastScan = { state = "cancelled", duration = GetTime() - self.scan.startedAt }
+        -- Keep the interrupted run separate: lastScan is overwritten below by
+        -- the new run's state, which previously made this diagnostic dead.
+        self.cancelledScan = { state = "cancelled", duration = GetTime() - self.scan.startedAt }
     end
     -- Do not leave a stale scan object behind if the new ID enumeration fails.
     self.scan = nil

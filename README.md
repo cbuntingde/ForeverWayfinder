@@ -22,7 +22,7 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 - Optional TomTom waypoints: right-click any pin.
 - Draggable round minimap button.
 - Search every indexed NPC by name or sub-name, with category and zone/map filters. Search uses case-insensitive substring matching (not fuzzy matching).
-- World map browser panel: every indexed location grouped by category with counts and a name filter, in "This map" or "All zones" scope (all zones groups each category by zone). Left-click a row for a TomTom waypoint; right-click to open that location's map. The panel follows map changes, collapses sections, and remembers its position, scope, and open state.
+- World map browser panel: a leather-and-gold drawer docked to the map frame's right edge, listing every indexed location grouped by category with counts and a name filter, in "This map" or "All zones" scope (all zones groups each category by zone). Left-click a row for a TomTom waypoint; right-click to open that location's map. The panel follows map changes, collapses sections, and remembers its position, scope, and open state; a round map icon in the top-left stack (registered through Questie's Krowi_WorldMapButtons library when installed, so it stacks below the map pin and Questie's button without overlapping either) reopens it.
 
 ## Requirements
 
@@ -48,9 +48,10 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 - `/fw refresh` rebuilds the NPC index.
 - `/fw reset` restores default settings.
 - `/fw search` opens NPC search; filter by name, category, zone name, or map ID.
-- `/fw browse` opens or closes the world map location browser (opening the map first if needed). With the world map open, the panel appears automatically unless you closed it; the map tab reopens it.
+- `/fw browse` opens or closes the world map location browser (opening the map first if needed). With the world map open, the panel appears automatically unless you closed it; the top-left map icon toggles it, and right-clicking that icon opens NPC search.
 - `/fw clear` removes the last waypoint set by Forever Wayfinder (requires TomTom).
 - `/fw status` prints index statistics, scan timings, invalid data counts, unavailable coordinates, and unmapped areas.
+- `/fw icon` diagnoses the world map icon stack: library mode, managed buttons, anchor chain, screen rect, and overlap checks.
 - `/fw map` diagnoses map pins for the current map and refreshes the open world map.
 - Left-click the minimap button to open the panel, right-click it to toggle minimap pins, drag it to move it around the minimap.
 - Hover a pin for the NPC names and coordinates. Right-click it to set a TomTom waypoint.

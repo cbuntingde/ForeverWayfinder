@@ -76,9 +76,15 @@ ns.Journal = {
     Decorate = function() end,
     Header = function() end,
     Text = function() return mockObject() end,
+    Body = function() return mockObject() end,
     Input = function() return mockObject() end,
     Page = function() return mockObject() end,
     Solid = function() return mockObject() end,
+    CloseButton = function(parent, onClick)
+        local button = mockObject()
+        if onClick then button:SetScript("OnClick", onClick) end
+        return button
+    end,
 }
 
 local chunk, err = loadfile("Search.lua")

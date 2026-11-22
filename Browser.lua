@@ -9,8 +9,10 @@ Browser.collapsed = {}
 local Journal = ns.Journal
 local PANEL_WIDTH = 300
 local SECTION_HEIGHT = 20
+local ZONE_HEIGHT = 18
 local LINE_HEIGHT = 34
 local MAX_LINES = 400
+local SCOPE_WIDTH = 70
 
 local VALID_ANCHORS = {
     TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true,
@@ -161,6 +163,46 @@ function Browser:CreateLine(index)
     return line
 end
 
+function Browser:GetMode()
+    return ns.db.browserMode == "all" and "all" or "map"
+end
+
+function Browser:CreateScopeButton(text, mode)
+    local button = CreateFrame("Button", nil, self.panel,
+        BackdropTemplateMixin and "BackdropTemplate" or nil)
+    button:SetSize(SCOPE_WIDTH, 20)
+    if button.SetBackdrop then
+        button:SetBackdrop({
+            bgFile = ns.MEDIA.white, edgeFile = ns.MEDIA.white, edgeSize = 1,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 },
+        })
+    end
+    button.label = Journal.Text(button, 12, text, ns.Colors.inkMuted)
+    button.label:SetPoint("CENTER")
+    button:SetScript("OnClick", function()
+        if self:GetMode() == mode then return end
+        ns.db.browserMode = mode
+        self:UpdateScope()
+        self:ScheduleRefresh(0)
+    end)
+    self.scopeButtons = self.scopeButtons or {}
+    self.scopeButtons[mode] = button
+    return button
+end
+
+function Browser:UpdateScope()
+    local mode = self:GetMode()
+    for key, button in pairs(self.scopeButtons or {}) do
+        local active = key == mode
+        if button.SetBackdropColor then
+            local fill = active and ns.Colors.maroon or ns.Colors.leatherDark
+            button:SetBackdropColor(fill[1], fill[2], fill[3], 1)
+        end
+        local color = active and ns.Colors.brightGold or ns.Colors.muted
+        button.label:SetTextColor(color[1], color[2], color[3])
+    end
+end
+
 function ns:CreateBrowserUI()
     if self.browser and self.browser.panel then return self.browser end
     if not WorldMapFrame then return nil end
@@ -218,13 +260,19 @@ function ns:CreateBrowserUI()
     caption:SetPoint("TOPLEFT", 12, -58)
 
     local filter = Journal.Input(panel, PANEL_WIDTH - 24, 22)
-    filter:SetPoint("TOPLEFT", 12, -72)
+    filter:SetPoint("TOPLEFT", 12, -84)
     filter:SetScript("OnTextChanged", function() browser:ScheduleRefresh(0.15) end)
     filter:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     filter:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     panel.filter = filter
 
-    local page = Journal.Page(panel, 8, -102, -8, 40)
+    local scopeMap = browser:CreateScopeButton("This map", "map")
+    scopeMap:SetPoint("TOPRIGHT", -84, -58)
+    local scopeAll = browser:CreateScopeButton("All zones", "all")
+    scopeAll:SetPoint("TOPRIGHT", -10, -58)
+    browser:UpdateScope()
+
+    local page = Journal.Page(panel, 8, -114, -8, 40)
     local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 6, -6)
     scroll:SetPoint("BOTTOMRIGHT", -26, 6)
@@ -264,7 +312,7 @@ function ns:CreateBrowserUI()
         end
         if GameTooltip then
             GameTooltip:AddLine("Forever Wayfinder locations", 1.00, 0.82, 0.00)
-            GameTooltip:AddLine("Click to browse this map.", 0.86, 0.83, 0.74)
+            GameTooltip:AddLine("Click to browse locations.", 0.86, 0.83, 0.74)
             GameTooltip:Show()
         end
     end)
@@ -280,7 +328,9 @@ function ns:CreateBrowserUI()
         if elapsed < 0.25 then return end
         elapsed = 0
         if not self:IsShown() or ns.blocked or not ns.ready then return end
-        if GetWorldMapID() ~= self.mapID then browser:ScheduleRefresh(0) end
+        if browser:GetMode() == "map" and GetWorldMapID() ~= self.mapID then
+            browser:ScheduleRefresh(0)
+        end
     end)
 
     if WorldMapFrame.HookScript then
@@ -329,6 +379,7 @@ end
 
 function Browser:Show()
     ns.db.browserEnabled = true
+    self:UpdateScope()
     self.panel:Show()
     self.tab:Hide()
     self:ScheduleRefresh(0)
@@ -348,6 +399,7 @@ function Browser:AutoShow()
         self:UpdateTab()
         return
     end
+    self:UpdateScope()
     self.panel:Show()
     self.tab:Hide()
     self:ScheduleRefresh(0)
@@ -427,18 +479,26 @@ function Browser:Render()
         return
     end
 
-    local mapID = GetWorldMapID()
-    panel.mapID = mapID
-    if not mapID then
-        panel.status:SetText("Open the world map to browse its locations.")
-        self:HideLines()
-        panel.content:SetHeight(1)
-        return
+    local mode = self:GetMode()
+    panel.mode = mode
+
+    local mapID
+    if mode == "map" then
+        mapID = GetWorldMapID()
+        panel.mapID = mapID
+        if not mapID then
+            panel.status:SetText("Open the world map to browse its locations.")
+            self:HideLines()
+            panel.content:SetHeight(1)
+            return
+        end
+    else
+        panel.mapID = nil
     end
 
     local query = panel.filter:GetText() or ""
     local sections = ns:BrowseEntries({
-        maps = { mapID },
+        maps = mode == "map" and { mapID } or nil,
         query = query,
         categories = ns.db and ns.db.categories,
     })
@@ -455,8 +515,17 @@ function Browser:Render()
         if section.total > 0 then
             if not Push({ kind = "section", section = section }) then full = true; break end
             if not self.collapsed[section.key] then
+                local lastZone
                 for rowIndex = 1, #section.rows do
-                    if not Push({ kind = "row", section = section, row = section.rows[rowIndex] }) then
+                    local row = section.rows[rowIndex]
+                    if mode == "all" and row.zoneName ~= lastZone then
+                        lastZone = row.zoneName
+                        if not Push({ kind = "zone", section = section, zone = row.zoneName }) then
+                            full = true
+                            break
+                        end
+                    end
+                    if not Push({ kind = "row", section = section, row = row }) then
                         full = true
                         break
                     end
@@ -475,6 +544,8 @@ function Browser:Render()
         line.row = item.row
         line.sectionKey = section.key
         line.icon:SetTexture(section.icon)
+        line.icon:SetAlpha(1)
+        line.title:SetTextColor(ns.Colors.ink[1], ns.Colors.ink[2], ns.Colors.ink[3])
         line.background:SetAlpha(0)
         line:SetPoint("TOPLEFT", 0, -y)
         line:SetPoint("TOPRIGHT", 0, -y)
@@ -487,6 +558,14 @@ function Browser:Render()
             line.detail:Hide()
             line.rule:Show()
             y = y + SECTION_HEIGHT
+        elseif item.kind == "zone" then
+            line:SetHeight(ZONE_HEIGHT)
+            line.icon:SetAlpha(0)
+            line.title:SetTextColor(ns.Colors.inkMuted[1], ns.Colors.inkMuted[2], ns.Colors.inkMuted[3])
+            line.title:SetText(item.zone or "Unknown zone")
+            line.detail:Hide()
+            line.rule:Hide()
+            y = y + ZONE_HEIGHT
         else
             local row = item.row
             line:SetHeight(LINE_HEIGHT)
@@ -514,17 +593,23 @@ function Browser:Render()
 
     if total == 0 then
         if query ~= "" then
-            panel.status:SetFormattedText("No matches for \"%s\" on this map.", query)
+            if mode == "all" then
+                panel.status:SetFormattedText("No matches for \"%s\" in any zone.", query)
+            else
+                panel.status:SetFormattedText("No matches for \"%s\" on this map.", query)
+            end
+        elseif mode == "all" then
+            panel.status:SetText("No indexed locations for the enabled categories.")
         else
             panel.status:SetText("No indexed locations on this map.")
         end
         return
     end
 
-    local parts = {
-        ("%d location%s"):format(total, total == 1 and "" or "s"),
-        ("%d categor%s"):format(categories, categories == 1 and "y" or "ies"),
-    }
+    local parts = {}
+    if mode == "all" then parts[#parts + 1] = "All zones" end
+    parts[#parts + 1] = ("%d location%s"):format(total, total == 1 and "" or "s")
+    parts[#parts + 1] = ("%d categor%s"):format(categories, categories == 1 and "y" or "ies")
     if capped then parts[#parts + 1] = "capped per category" end
     if truncated then parts[#parts + 1] = "narrow the filter" end
     panel.status:SetText(table.concat(parts, " · "))

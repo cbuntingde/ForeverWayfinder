@@ -1,6 +1,6 @@
 # World Map Location Browser — Design
 
-**Status:** Phases A-B implemented (data layer, this-map panel); all-zones mode and settings wiring remain
+**Status:** Phases A-C implemented (data layer, panel with this-map and all-zones scopes, settings and slash wiring); in-game geometry and map-change verification remain
 **Date:** 2026-11-22  
 **Scope:** Forever Wayfinder 1.3.x  
 **Tracking issue:** the GitHub issue that links this document
@@ -36,7 +36,7 @@ A panel docked to the right edge of `WorldMapFrame`, rendered in the existing jo
 
 ### 3.1 Placement and lifecycle
 
-- Panel is a child of `WorldMapFrame`, anchored `TOPLEFT` to the map frame's `TOPRIGHT` (offset ~8 px), height matched to the map frame. Fallback anchor to `UIParent` if the frame geometry is unavailable.
+- Panel is a child of `WorldMapFrame`, anchored `TOPLEFT` to the map canvas's `TOPRIGHT` (offset ~8 px) when the frame leaves room; otherwise it anchors inside the map frame's right edge (24 px inset, 90 px down) so it never lands offscreen. Height is clamped to 320–640 px.
 - A small tab/button on the map frame's right edge toggles the panel. State persists as `db.browserEnabled`.
 - Shown only while the world map is shown and the index is ready; hidden with the map.
 - Displayed map ID: `WorldMapFrame:GetMapID()`, falling back to `C_Map.GetBestMapForUnit("player")`. Both wrapped in `pcall`.
@@ -50,8 +50,9 @@ A panel docked to the right edge of `WorldMapFrame`, rendered in the existing jo
 
 ### 3.2 Scope modes
 
-- **This map (default):** lists entries whose `mapID` equals the displayed map. No parent/continent fallback — an empty result shows "No indexed locations on this map" plus a hint to switch to All zones. This avoids dumping a whole continent list onto a map that simply has no indexed data.
-- **All zones:** lists every indexed map, grouped category → zone → location. Intended for cross-zone planning; waypoints are set with the node's own `mapID`, which TomTom accepts across zones.
+- **This map (default):** lists entries whose `mapID` equals the displayed map. No parent/continent fallback — an empty result shows "No indexed locations on this map". This avoids dumping a whole continent list onto a map that simply has no indexed data.
+- **All zones:** lists every indexed map, grouped category → zone → location, with a zone subheader before each run of rows. Intended for cross-zone planning; waypoints are set with the node's own `mapID`, which TomTom accepts across zones.
+- The two scope buttons ("This map" / "All zones") sit above the filter and persist the choice as `db.browserMode`.
 - Continent aggregation (`db.showOnContinent`) does not affect the browser; it stays a pin-display option.
 
 ### 3.3 Grouping and sorting
@@ -60,8 +61,8 @@ A panel docked to the right edge of `WorldMapFrame`, rendered in the existing jo
 - Each indexed entry appears under every enabled category it matches. A vendor that also repairs appears under both Vendors and Repair — that is the point of category browsing, and it matches how the search category filter behaves today. A shared coordinate with several NPCs yields one row per NPC, since the category claim belongs to the entry, not the merged node.
 - Only categories enabled in `db.categories` are shown, so the list always matches the visible pins. `db.factionFilter` is applied at index time, so the list inherits it without extra work.
 - Sort inside a category: map mode → `ns:GetNodeTitle(node)`, then coordinate; all-zones mode → zone name, then title.
-- Row text: title (`ns:GetNodeTitle`, `Core.lua:464`), detail line with zone, coordinates and the node's category names (`ns:GetNodeCategoryNames`, `Core.lua:473`).
-- Categories with zero matching nodes are omitted in map mode and shown with a "0" count in all-zones mode.
+- Row text: title, then a detail line with the sub-name and coordinates. All-zones mode adds a muted zone subheader before each zone's rows instead of repeating the zone on every row.
+- Categories with no matching nodes are omitted in both modes.
 
 ### 3.4 Row actions
 
@@ -80,7 +81,7 @@ A single text input above the list filters the current mode by NPC name or sub-n
 |---|---|
 | `ns.blocked` | Disabled reason (red), same wording as the settings/search windows |
 | `not ns.ready` | "Index is still loading…" and no rows |
-| No matches in map mode | Empty message plus "Show all zones" hint |
+| No matches in map mode | Empty message; switch scope with the All zones button |
 | No matches in all-zones mode | Empty message; filter is kept |
 
 ## 4. Implementation plan
@@ -90,7 +91,7 @@ A single text input above the list filters the current mode by NPC name or sub-n
 3. **Wiring.** `Core.lua`: defaults `browserEnabled = true`, `browserMode = "map"`; `/fw browse` in `HandleSlash` and `PrintHelp`; call the browser refresh from `ns:Refresh()`. `UI.lua`: "World map browser" checkbox in the Display section.
 4. **Tests and docs.** Extend `tests/run.lua` for grouping, multi-category membership, scope filtering, caps and sort order; update `README.md` usage/features; add a `CHANGELOG.md` entry.
 
-Suggested phases: (A) `BrowseEntries` + tests, (B) panel with this-map mode, (C) all-zones mode + settings/slash + docs.
+Suggested phases: (A) `BrowseEntries` + tests, (B) panel with this-map mode, (C) all-zones mode + settings/slash + docs. All three are implemented; only in-game verification remains.
 
 ## 5. Performance
 

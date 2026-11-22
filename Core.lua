@@ -338,6 +338,8 @@ ns.defaults = {
     pinScale = 1.0,
     minimapAngle = 220,
     hideMinimapButton = false,
+    browserEnabled = true,
+    browserMode = "map",
     uiPosition = nil,
 }
 
@@ -498,10 +500,13 @@ function ns:InitDB()
     self:CopyDefaults(db.categories, self.defaultCategories)
 
     local booleanKeys = { "enabled", "showWorldMap", "showMinimap", "showOnContinent",
-        "factionFilter", "hideMinimapButton" }
+        "factionFilter", "hideMinimapButton", "browserEnabled" }
     for i = 1, #booleanKeys do
         local key = booleanKeys[i]
         if type(db[key]) ~= "boolean" then db[key] = self.defaults[key] end
+    end
+    if db.browserMode ~= "map" and db.browserMode ~= "all" then
+        db.browserMode = self.defaults.browserMode
     end
     for key, defaultValue in pairs(self.defaultCategories) do
         if type(db.categories[key]) ~= "boolean" then db.categories[key] = defaultValue end
@@ -626,7 +631,7 @@ local function PrintHelp()
     ns:Print("  /fw refresh - rebuild the NPC index")
     ns:Print("  /fw reset - restore default settings")
     ns:Print("  /fw search - search NPCs by name, category, or zone")
-    ns:Print("  /fw browse - open or close the world map location browser")
+    ns:Print("  /fw browse - open or close the world map location browser (this map or all zones)")
     ns:Print("  /fw clear - clear the last Forever Wayfinder waypoint")
     ns:Print("  /fw status - show index statistics")
     ns:Print("  /fw map - diagnose map pins for the current map")

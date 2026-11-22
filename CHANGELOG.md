@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+World map location browser.
+
+- Add a world map browser panel in the journal theme listing every indexed location, grouped under SERVICES / TRAINERS / OTHER POINTS OF INTEREST with per-category counts, collapsible headers, and a name filter.
+- "This map" lists the displayed map; "All zones" groups each category by zone and sets waypoints on each location's own map.
+- Left-click a row for a TomTom waypoint; right-click opens/selects that map (combat-guarded). A "Clear waypoint" button clears the last waypoint.
+- The panel follows zone/continent/city map changes and remembers its position, scope, and open state; closing it leaves a tab on the map.
+- Add `/fw browse` to open or close the browser and a "Locations panel" checkbox to the Display settings.
+- Validate `browserEnabled` and `browserMode` saved variables on load.
+
 ## 1.2.5
 
 Dependency re-verification, trainer accuracy, and cleaner diagnostics.

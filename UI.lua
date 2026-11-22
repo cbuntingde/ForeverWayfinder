@@ -104,6 +104,18 @@ function ns:CreateUI()
             ns:UpdateMinimapButton()
         end)
 
+    frame.browserRow = Journal.CheckRow(page, CONTENT_RIGHT, minimapRowY, ROW_WIDTH, ROW_HEIGHT,
+        "Locations panel", nil,
+        function() return ns.db.browserEnabled ~= false end,
+        function(value)
+            local browser = ns.browser
+            if browser and browser.panel and WorldMapFrame and WorldMapFrame:IsShown() then
+                if value then browser:Show() else browser:Hide() end
+            else
+                ns.db.browserEnabled = value
+            end
+        end)
+
     local scaleLabel = Journal.Text(page, 14, "Pin scale", ns.Colors.ink)
     scaleLabel:SetPoint("TOPLEFT", CONTENT_LEFT, minimapRowY - 30)
 
@@ -198,6 +210,9 @@ function ns:UpdateUI()
     end
     if frame.minimapButtonRow then
         frame.minimapButtonRow:Refresh()
+    end
+    if frame.browserRow then
+        frame.browserRow:Refresh()
     end
     if frame.scaleSlider then
         frame.scaleSlider:SetValue(self.db.pinScale or 1)

@@ -6,7 +6,8 @@ local ns = {
         gold = { 0.83, 0.69, 0.32 }, muted = { 0.62, 0.59, 0.52 },
         pageHover = { 0.80, 0.72, 0.53 }, ink = { 0.24, 0.17, 0.10 },
         inkMuted = { 0.47, 0.40, 0.29 }, goldLine = { 0.72, 0.58, 0.30 },
-        leatherDark = { 0.10, 0.07, 0.045 },
+        leatherDark = { 0.10, 0.07, 0.045 }, maroon = { 0.45, 0.10, 0.10 },
+        brightGold = { 1.00, 0.82, 0.00 },
     },
     db = {},
     ready = true,
@@ -179,6 +180,23 @@ assert(waypoint and waypoint.mapID == 100, "left click sets a waypoint on the ro
 assert(waypoint.title == "Marshal Dughan - General Goods", "waypoint keeps the full title")
 rowLine.scripts.OnClick(rowLine, "RightButton")
 assert(focusedMapID == 100, "right click focuses the row map")
+
+assert(browser.scopeButtons and browser.scopeButtons.map and browser.scopeButtons.all,
+    "scope buttons are created")
+browser.scopeButtons.all.scripts.OnClick(browser.scopeButtons.all)
+assert(ns.db.browserMode == "all", "all-zones scope is recorded")
+assert(browseCalls[#browseCalls].maps == nil, "all-zones browse is not map-scoped")
+assert(browser.panel.status.text:find("All zones", 1, true), "status reports all-zones scope")
+local zoneLine
+for _, line in ipairs(browser.panel.lines) do
+    if line.kind == "zone" then zoneLine = line end
+end
+assert(zoneLine and zoneLine.title.text == "Elwynn Forest",
+    "all-zones rows are grouped under zone headers")
+
+browser.scopeButtons.map.scripts.OnClick(browser.scopeButtons.map)
+assert(ns.db.browserMode == "map", "map scope is recorded again")
+assert(browseCalls[#browseCalls].maps[1] == 100, "map scope browses the displayed map")
 
 sectionLine.scripts.OnClick(sectionLine, "LeftButton")
 assert(browser.panel.lines[2].shown == false, "collapsing a section hides its rows")

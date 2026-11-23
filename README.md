@@ -4,9 +4,9 @@ Find vendors, trainers and service NPCs on the world map and the minimap in Worl
 
 Forever Wayfinder reads its location data from **QuestieDB** at runtime and displays it through **HandyNotes**. No NPC data is bundled with the addon; the pins are built once per login from the QuestieDB you already have installed.
 
-![Forever Wayfinder settings panel](docs/screenshot-settings.png)
+![Forever Wayfinder settings panel](docs/screenshot-settings-1.12.0.png)
 
-![Forever Wayfinder map location browser](docs/screenshot-map.png)
+![Forever Wayfinder map location browser](docs/screenshot-map-1.12.0.png)
 
 ## Features
 

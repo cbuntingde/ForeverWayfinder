@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.12.0
+
+The Cartographer's Column: the world map location browser becomes an integrated
+sidebar, and the settings window joins it on the same design. This release rolls
+up the 1.4.0–1.11.1 work, which had not been published before.
+
+- Redesign the map panel as the Cartographer's Column: a 28 px branded spine, an opaque banded leather page, a full-bleed header naming the browsed map, and a location strip with the player's zone/subzone/coordinates and the cursor position.
+- Dock the column below the map's cursor strip and title bar instead of covering them, beside Blizzard's quest sidebar when it is shown; restored positions are pulled down until their top clears the header.
+- Add "What's here" group chips (SERVICES / TRAINERS / PROFESSIONS / OTHER) with live location counts that filter the list; profession trainers are their own group.
+- Add a facet tier of category chips for the selected group; category chips and section bands filter the list, a second click clears, and a marker folds a section.
+- Add NEAR ME ordering by walking distance with per-row distances, and a hover card with name, role, zone, coordinates, distance, and both click actions.
+- Give coordinates a fixed right-hand column so rows stay on one line; roles and names are ellipsized instead of wrapping.
+- Add `/fw find [text]` (and expansion of the panel) to focus the location filter from anywhere.
+- Rebuild the settings window on the same column design and reflow it into a three-column grid, so every category, DISPLAY switch, waypoint and scale row fits on one screen; the scroll bar now appears only on screens too short for the page.
+- Search only returns enabled categories and also matches category names; the settings window shows the active waypoint and clears it.
+- Stop the panel from capturing the keyboard: M and ESC reach the world map bindings again, and arrow/Enter navigation moves onto the filter box. Remove `Bindings.xml`, which this client rejects with "Unrecognized XML: Binding".
+- Fix chip counts to count distinct locations, refuse filters for switched-off categories, end minimap drags on mouse-up anywhere, and convert cursor coordinates into the minimap's space.
+- Stop the browser from re-enabling itself on open; rename the minimap-button flag to `showMinimapButton` with migration of the saved choice.
+- Read the QuestieDB object table only when mailboxes are enabled, trim long setting labels, remove dead code, and split the `/fw` handler into one function per command.
+
 ## 1.3.0
 
 World map location browser.

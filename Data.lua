@@ -162,7 +162,7 @@ function ns:ResetIndex()
     self.mapNameCache = {}
     self.rowCache = nil
     self.stat = {
-        nodes = 0, mapCount = 0, npcs = 0, objects = 0,
+        nodes = 0, mapCount = 0, npcs = 0, mailboxes = 0,
         invalidRecords = 0, invalidSpawns = 0, unavailablePositions = 0,
         suppressedSpawns = 0, unmappedAreas = 0, npcErrors = 0, objectErrors = 0,
         invalidSpawnReasons = {}, invalidSpawnSamples = {},
@@ -385,7 +385,7 @@ function ns:IndexObject(id)
         self.stat.invalidRecords = (self.stat.invalidRecords or 0) + 1
         return
     end
-    self.stat.objects = self.stat.objects + 1
+    self.stat.mailboxes = self.stat.mailboxes + 1
 
     local entry = { kind = "object", name = name, sub = "Mailbox", id = id, searchName = Lower(name), searchSub = "mailbox" }
     local cats = { mailbox = true }
@@ -484,7 +484,6 @@ function ns:ScanStep()
             enumerationDuration = scan.enumerationDuration,
             maxSliceDuration = scan.maxSliceDuration or 0,
             maxSliceProcessed = scan.maxSliceProcessed or 0,
-            npcCount = scan.npcPos - 1, objectCount = scan.objPos - 1,
             errors = scan.errors or {},
         }
         self:Refresh()
@@ -521,18 +520,27 @@ function ns:StartScan()
     local enumerationStarted = GetTime()
     self.lastScan = { state = "enumerating", startedAt = enumerationStarted }
     local npcOk, npcIds = pcall(NpcDB.GetAllIds)
-    local objOk, objIds = pcall(ObjectDB.GetAllIds)
     if not npcOk or type(npcIds) ~= "table" then
         self.lastScan = { state = "failed", reason = "QuestieDB NPC ID enumeration failed." }
         self:Print("Indexing failed: QuestieDB NPC ID enumeration failed.")
         if self.UpdateUIStatus then self:UpdateUIStatus() end
         return false
     end
-    if not objOk or type(objIds) ~= "table" then
-        self.lastScan = { state = "failed", reason = "QuestieDB object ID enumeration failed." }
-        self:Print("Indexing failed: QuestieDB object ID enumeration failed.")
-        if self.UpdateUIStatus then self:UpdateUIStatus() end
-        return false
+
+    -- Only mailboxes are taken from the object table, and reading every object
+    -- QuestieDB holds costs scan slices, so the table is only walked when the
+    -- mailbox category is on.
+    local objIds = {}
+    local wantMailboxes = not (self.db and self.db.categories and self.db.categories.mailbox == false)
+    if wantMailboxes then
+        local objOk, ids = pcall(ObjectDB.GetAllIds)
+        if not objOk or type(ids) ~= "table" then
+            self.lastScan = { state = "failed", reason = "QuestieDB object ID enumeration failed." }
+            self:Print("Indexing failed: QuestieDB object ID enumeration failed.")
+            if self.UpdateUIStatus then self:UpdateUIStatus() end
+            return false
+        end
+        objIds = ids
     end
 
     self.scan = {

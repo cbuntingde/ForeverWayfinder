@@ -5,6 +5,8 @@ local ADDON, ns = ...
 local Waypoints = {}
 ns.Waypoints = Waypoints
 
+local WAYPOINT_SOURCE = "ForeverWayfinder"
+
 function Waypoints:IsAvailable()
     return TomTom ~= nil and type(TomTom.AddWaypoint) == "function"
 end
@@ -22,28 +24,55 @@ function Waypoints:Set(mapID, x, y, title)
     local ok, uid = pcall(TomTom.AddWaypoint, TomTom, mapID, x, y, {
         title = title,
         crazy = true,
-        from = "ForeverWayfinder",
+        from = WAYPOINT_SOURCE,
     })
-    if not ok then
+    if not ok or type(uid) ~= "table" then
         return false, "TomTom could not create a waypoint for this location."
     end
     self.lastWaypoint = uid
+    if ns.UpdateUI then ns:UpdateUI() end
     return true
 end
 
+-- TomTom owns the waypoint and keeps it in its own saved variables, so the
+-- handle is looked up by source instead of being stored here: a reload
+-- rebuilds TomTom's uid tables and a stored one would no longer match.
+function Waypoints:FindWaypoint()
+    local store = TomTom and TomTom.waypoints
+    if type(store) ~= "table" then return nil end
+    local fallback
+    for _, entries in pairs(store) do
+        if type(entries) == "table" then
+            for _, uid in pairs(entries) do
+                if type(uid) == "table" and uid.from == WAYPOINT_SOURCE then
+                    if self.lastWaypoint and uid == self.lastWaypoint then return uid end
+                    if not fallback then fallback = uid end
+                end
+            end
+        end
+    end
+    return fallback
+end
+
+function Waypoints:HasWaypoint()
+    return self:FindWaypoint() ~= nil
+end
+
 function Waypoints:ClearLast()
-    if not self.lastWaypoint then
-        return false, "No Forever Wayfinder waypoint has been set."
+    local uid = self:FindWaypoint()
+    if not uid then
+        return false, "No Forever Wayfinder waypoint is set."
     end
     if not (TomTom and type(TomTom.RemoveWaypoint) == "function") then
         self.lastWaypoint = nil
         return false, "TomTom is not installed; waypoint navigation is unavailable."
     end
-    local ok = pcall(TomTom.RemoveWaypoint, TomTom, self.lastWaypoint)
+    local ok = pcall(TomTom.RemoveWaypoint, TomTom, uid)
     if not ok then
         -- Keep the handle: TomTom still owns that waypoint, so a retry can clear it.
         return false, "TomTom could not clear the waypoint."
     end
     self.lastWaypoint = nil
+    if ns.UpdateUI then ns:UpdateUI() end
     return true
 end

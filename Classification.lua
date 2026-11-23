@@ -47,6 +47,9 @@ end
 function ns.ClassificationIsPositiveInteger(value)
     return ns.ClassificationIsFiniteNumber(value) and value > 0 and value % 1 == 0
 end
+function ns.ClassificationIsNonNegativeInteger(value)
+    return ns.ClassificationIsFiniteNumber(value) and value >= 0 and value % 1 == 0
+end
 function ns.ClassificationIsCoordinate(value)
     return ns.ClassificationIsFiniteNumber(value) and value >= 0 and value <= 100
 end

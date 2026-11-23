@@ -1,22 +1,13 @@
 local ADDON, ns = ...
 
-local atan2 = math.atan2 or function(y, x)
-    if x > 0 then
-        return math.atan(y / x)
-    elseif x < 0 and y >= 0 then
-        return math.atan(y / x) + math.pi
-    elseif x < 0 and y < 0 then
-        return math.atan(y / x) - math.pi
-    elseif x == 0 and y > 0 then
-        return math.pi / 2
-    elseif x == 0 and y < 0 then
-        return -math.pi / 2
-    end
-    return 0
-end
-
+-- The minimap's offsets are expressed in the coordinate space of its parent,
+-- so the raw cursor position is converted into that space before the two are
+-- compared. GetCursorPosition is not affected by the UI scale, the frame
+-- offsets are.
 local function CursorPosition()
-    local scale = UIParent:GetEffectiveScale()
+    local parent = (Minimap and Minimap.GetParent and Minimap:GetParent()) or UIParent
+    local scale = parent and parent.GetEffectiveScale and parent:GetEffectiveScale() or 1
+    if type(scale) ~= "number" or scale == 0 then scale = 1 end
     local x, y = GetCursorPosition()
     return x / scale, y / scale
 end
@@ -36,7 +27,7 @@ function ns:UpdateMinimapButton()
     local button = self.minimapButton
     if not button then return end
 
-    button:SetShown(not self.db.hideMinimapButton)
+    button:SetShown(self.db.showMinimapButton ~= false)
     button.icon:SetDesaturated(not self.db.enabled or not self.db.showMinimap)
     self:UpdateMinimapButtonPosition()
 end
@@ -78,7 +69,7 @@ function ns:CreateMinimapButton()
         GameTooltip:AddLine(
             "Right-click: minimap pins " .. (ns.db.showMinimap and "|cff66cc66on|r" or "|cffff6666off|r"),
             0.86, 0.83, 0.74)
-        GameTooltip:AddLine("Drag: move this button", 0.55, 0.55, 0.50)
+        GameTooltip:AddLine("Drag: move around the minimap", 0.55, 0.55, 0.50)
         if not ns.db.enabled then
             GameTooltip:AddLine("All pins are currently disabled.", 0.85, 0.35, 0.30)
         end
@@ -97,6 +88,14 @@ function ns:CreateMinimapButton()
 
     button:SetScript("OnUpdate", function(self)
         if not self.dragging then return end
+        -- The button does not own the mouse during the drag, so a release
+        -- outside it is delivered elsewhere and OnMouseUp never runs. The
+        -- real button state is the only reliable end-of-drag signal.
+        if type(IsMouseButtonDown) == "function" and not IsMouseButtonDown("LeftButton") then
+            self.dragging = false
+            self.dragMoved = false
+            return
+        end
 
         local cursorX, cursorY = CursorPosition()
         local minimapX, minimapY = Minimap:GetCenter()
@@ -112,7 +111,7 @@ function ns:CreateMinimapButton()
         end
 
         if self.dragMoved then
-            ns.db.minimapAngle = math.deg(atan2(deltaY, deltaX))
+            ns.db.minimapAngle = math.deg(math.atan2(deltaY, deltaX))
             ns:UpdateMinimapButtonPosition()
         end
     end)

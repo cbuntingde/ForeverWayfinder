@@ -9,9 +9,11 @@ local handler = {}
 function ns:GetParentChain(mapID)
     local parents = {}
     local current = mapID
+    if not (C_Map and type(C_Map.GetMapInfo) == "function") then return parents end
     for _ = 1, 4 do
-        local info = C_Map.GetMapInfo(current)
-        local parent = info and info.parentMapID
+        local ok, info = pcall(C_Map.GetMapInfo, current)
+        if not ok or type(info) ~= "table" then break end
+        local parent = info.parentMapID
         if not parent or parent == 0 or parent == current then break end
         parents[#parents + 1] = parent
         current = parent
@@ -24,10 +26,14 @@ function ns:GetDescendantMaps(mapID)
     if cached then return cached end
 
     local maps, seen = {}, { [mapID] = true }
+    if not (C_Map and type(C_Map.GetMapChildrenInfo) == "function") then
+        self.descCache[mapID] = maps
+        return maps
+    end
     local function walk(id, depth)
         if depth > 3 then return end
-        local children = C_Map.GetMapChildrenInfo(id)
-        if not children then return end
+        local ok, children = pcall(C_Map.GetMapChildrenInfo, id)
+        if not ok or type(children) ~= "table" then return end
         for index = 1, #children do
             local childID = children[index].mapID
             if childID and not seen[childID] then
@@ -47,8 +53,11 @@ end
 
 function ns:GetMapsFor(uiMapID, minimap)
     if not minimap and self.db.showOnContinent then
-        local info = C_Map.GetMapInfo(uiMapID)
-        local mapType = info and info.mapType
+        local mapType
+        if C_Map and type(C_Map.GetMapInfo) == "function" then
+            local ok, info = pcall(C_Map.GetMapInfo, uiMapID)
+            if ok and type(info) == "table" then mapType = info.mapType end
+        end
         local isContinent = Enum and Enum.UIMapType and
             (mapType == Enum.UIMapType.Continent or mapType == Enum.UIMapType.World)
 

@@ -23,7 +23,13 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 - Draggable round minimap button.
 - Search every indexed NPC by name or sub-name, with category and zone/map filters. Search uses case-insensitive substring matching (not fuzzy matching).
 - A "Locations panel" checkbox in the Display settings to show or hide the browser independently of the map.
-- World map browser panel: a leather-and-gold drawer docked to the map frame's right edge, listing every indexed location grouped by category with counts and a name filter, in "This map" or "All zones" scope (all zones groups each category by zone). Left-click a row for a TomTom waypoint; right-click to open that location's map. The panel follows map changes, collapses sections, and remembers its position, scope, and open state; a round map icon in the top-left stack (registered through Questie's Krowi_WorldMapButtons library when installed, so it stacks below the map pin and Questie's button without overlapping either) reopens it.
+- World map location browser: the "Cartographer's Column", a branded sidebar docked to the right of the map and below its header, listing every indexed location for the browsed map or all zones.
+- "What's here" group chips (SERVICES / TRAINERS / PROFESSIONS / OTHER) with live location counts, and a facet tier of category chips, filter the list; clicking a section band or a chip again clears the filter.
+- NEAR ME sorts rows by walking distance (HereBeDragons, bundled with HandyNotes) and adds the distance to each row; hovering a row shows a card with name, role, zone, coordinates, distance, and both click actions.
+- Location strip in the header: the player's zone, subzone and coordinates on the left, the map cursor's coordinates on the right.
+- `/fw find [text]` opens the map, expands the panel, and focuses the location filter.
+- The panel follows map changes, collapses sections, remembers its position and scope, and reopens from a round map icon in the top-left stack (registered through Questie's Krowi_WorldMapButtons library when installed, so it stacks below the map pin and Questie's button without overlapping either).
+- The settings window uses the same column design, with every category, display switch, waypoint and scale row on one page.
 
 ## Requirements
 
@@ -50,6 +56,7 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 - `/fw reset` restores default settings.
 - `/fw search` opens NPC search; filter by name, category, zone name, or map ID.
 - `/fw browse` opens or closes the world map location browser (opening the map first if needed). With the world map open, the panel appears automatically unless you closed it; the top-left map icon toggles it, and right-clicking that icon opens NPC search.
+- `/fw find [text]` opens the map, expands the panel, and focuses the location filter (optionally with `text` filled in).
 - `/fw clear` removes the last waypoint set by Forever Wayfinder (requires TomTom).
 - `/fw status` prints index statistics, scan timings, invalid data counts, unavailable coordinates, and unmapped areas.
 - `/fw icon` diagnoses the world map icon stack: library mode, managed buttons, anchor chain, screen rect, and overlap checks.
@@ -57,7 +64,7 @@ Pins are indexed after you log in. The first run takes a moment; `/fw status` sh
 - Left-click the minimap button to open the panel, right-click it to toggle minimap pins, drag it to move it around the minimap.
 - Hover a pin for the NPC names and coordinates. Right-click it to set a TomTom waypoint.
 - In search results, left-click to open/select the result's map when supported by the client; right-click to set a TomTom waypoint.
-- In the browser panel, left-click a row to set a TomTom waypoint, right-click to open/select its map, click a category header to collapse it, switch between "This map" and "All zones" above the filter, and use the filter box to narrow the list.
+- In the browser panel, left-click a row to set a TomTom waypoint, right-click to open/select its map, click a group chip or category chip to filter, click the same one again to clear, use the marker beside a section band to fold it, and type in the filter box to narrow the list by name, category, or zone.
 
 ## Notes
 
@@ -75,7 +82,7 @@ MIT. See `LICENSE`.
 - `/fw map` reports the render gates, HandyNotes registration, the current map's node and icon counts, a per-category shown-versus-skipped breakdown, and icon-path validity.
 - Malformed QuestieDB records are skipped without aborting the full index build.
 - Zone-map payloads are decoded in a restricted environment and validated before use.
-- Pure Lua regression tests are in `tests/run.lua`; mocked search-window and map-browser lifecycle tests are in `tests/search_ui.lua` and `tests/browser_ui.lua`. From the repository root, run `lua5.1 tests/run.lua`, `lua5.1 tests/search_ui.lua` and `lua5.1 tests/browser_ui.lua`.
+- Pure Lua regression tests are in `tests/run.lua`; mocked WoW UI lifecycle tests (settings, search, and the map browser in several atlas modes) are in `tests/ui-smoke.lua`. From the repository root, run `lua5.1 tests/run.lua` and `lua5.1 tests/ui-smoke.lua`.
 - The standalone tests do not replace in-game testing against the declared client and supported QuestieDB/HandyNotes versions.
 
 ## Troubleshooting

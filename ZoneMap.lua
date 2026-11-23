@@ -1,14 +1,7 @@
 local ADDON, ns = ...
 
-local function IsPositiveInteger(value)
-    return type(value) == "number" and value == value and value ~= math.huge
-        and value ~= -math.huge and value > 0 and value % 1 == 0
-end
-
-local function IsNonNegativeInteger(value)
-    return type(value) == "number" and value == value and value ~= math.huge
-        and value ~= -math.huge and value >= 0 and value % 1 == 0
-end
+local IsPositiveInteger = ns.ClassificationIsPositiveInteger
+local IsNonNegativeInteger = ns.ClassificationIsNonNegativeInteger
 
 local function DecodeTable(source, chunkName)
     if type(source) ~= "string" or source == "" then
@@ -46,7 +39,6 @@ local function DecodeTable(source, chunkName)
     if type(value) ~= "table" then return nil, "decoded value is not a table" end
     return value
 end
-ns.DecodeZoneMapTable = DecodeTable
 
 local function ValidateMapping(mapping, label)
     local valid, invalid = {}, 0
@@ -64,7 +56,6 @@ local function ValidateMapping(mapping, label)
     end
     return valid, nil, invalid
 end
-ns.ValidateZoneMapMapping = ValidateMapping
 
 function ns:BuildZoneMap()
     local support = _G.LibQuestieDB and _G.LibQuestieDB.Support
@@ -74,18 +65,18 @@ function ns:BuildZoneMap()
 
     local baseRaw, baseError = DecodeTable(private.areaIdToUiMapId, "QuestieDB.ZoneDB.areaIdToUiMapId")
     if not baseRaw then return false, "QuestieDB base map failed to decode: " .. tostring(baseError) end
-    local base, baseErrorMessage, invalidBase = ValidateMapping(baseRaw, "QuestieDB base map")
+    local base, baseErrorMessage = ValidateMapping(baseRaw, "QuestieDB base map")
     if not base then return false, baseErrorMessage end
 
-    local override, invalidOverride = {}, 0
+    local override = {}
     if private.areaIdToUiMapIdOverride ~= nil and private.areaIdToUiMapIdOverride ~= "" then
         local overrideRaw, overrideError = DecodeTable(private.areaIdToUiMapIdOverride,
             "QuestieDB.ZoneDB.areaIdToUiMapIdOverride")
         if not overrideRaw then return false, "QuestieDB map override failed to decode: " .. tostring(overrideError) end
         if next(overrideRaw) ~= nil then
-            local validated, validationError, invalidCount = ValidateMapping(overrideRaw, "QuestieDB map override")
+            local validated, validationError = ValidateMapping(overrideRaw, "QuestieDB map override")
             if not validated then return false, validationError end
-            override, invalidOverride = validated, invalidCount or 0
+            override = validated
         end
     end
 
@@ -103,16 +94,10 @@ function ns:BuildZoneMap()
     end
     Apply(base)
     Apply(override)
-    local mapToArea = {}
-    for areaID, mapID in pairs(areaToMap) do
-        if not mapToArea[mapID] then mapToArea[mapID] = areaID end
-    end
-    self.areaToMap, self.mapToArea, self.suppressedAreas = areaToMap, mapToArea, suppressedAreas
+    self.areaToMap, self.suppressedAreas = areaToMap, suppressedAreas
 
-    self.zoneMapDiagnostics = { baseEntries = 0, overrideEntries = 0, suppressedAreas = 0,
-        invalidBaseEntries = invalidBase or 0, invalidOverrideEntries = invalidOverride }
-    for _ in pairs(base) do self.zoneMapDiagnostics.baseEntries = self.zoneMapDiagnostics.baseEntries + 1 end
-    for _ in pairs(override) do self.zoneMapDiagnostics.overrideEntries = self.zoneMapDiagnostics.overrideEntries + 1 end
-    for _ in pairs(suppressedAreas) do self.zoneMapDiagnostics.suppressedAreas = self.zoneMapDiagnostics.suppressedAreas + 1 end
-    return true, self.zoneMapDiagnostics.baseEntries + self.zoneMapDiagnostics.overrideEntries
+    local baseEntries, overrideEntries = 0, 0
+    for _ in pairs(base) do baseEntries = baseEntries + 1 end
+    for _ in pairs(override) do overrideEntries = overrideEntries + 1 end
+    return true, baseEntries + overrideEntries
 end

@@ -25,6 +25,22 @@ end
 -- Flat entry cache
 --------------------------------------------------------------------------------------------
 
+-- The category names a row belongs to, normalized for matching. The filter
+-- box promises to match categories as well as names, so the row cache carries
+-- the names with it.
+local function CategoryNames(categories)
+    if type(categories) ~= "table" then return "" end
+    local names = {}
+    for key in pairs(categories) do
+        local category = ns.categoryByKey and ns.categoryByKey[key]
+        if category then
+            names[#names + 1] = ns.ClassificationNormalizeText(category.name)
+        end
+    end
+    table.sort(names)
+    return table.concat(names, " ")
+end
+
 -- One pre-sorted row per indexed entry. Search and browse both read this, so a
 -- keystroke or panel refresh no longer re-walks every node in the index. The
 -- owner-identity check ties the cache to one index generation.
@@ -51,14 +67,16 @@ function ns:GetIndexedRows()
                                 if type(entry.sub) == "string" and entry.sub ~= "" then
                                     title = display .. " - " .. entry.sub
                                 end
+                                local allCategories = type(entry.categories) == "table"
+                                    and entry.categories or node.cats
                                 rows[#rows + 1] = {
                                     mapID = mapID, coord = coord, node = node, entry = entry,
                                     mapName = mapName, searchZone = searchZone,
                                     searchName = name, searchSub = sub,
+                                    searchCategories = CategoryNames(allCategories),
                                     name = display, sub = entry.sub, title = title,
                                     categories = entry.categories,
-                                    allCategories = type(entry.categories) == "table"
-                                        and entry.categories or node.cats,
+                                    allCategories = allCategories,
                                     sortName = name, sortSub = sub,
                                 }
                             end
@@ -81,7 +99,14 @@ function ns:GetIndexedRows()
     return rows
 end
 
-function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
+-- query        - name or sub-name substring.
+-- categoryFilter - category key or name.
+-- zoneFilter   - zone name or map ID.
+-- limit        - maximum number of results.
+-- enabled      - optional set of enabled category keys; a row outside it is
+--                not a result, so the search covers the same ground as the
+--                map column.
+function ns:SearchEntries(query, categoryFilter, zoneFilter, limit, enabled)
     if not self.ready or type(self.index) ~= "table" then
         return {}, "index-not-ready"
     end
@@ -98,15 +123,12 @@ function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
     local numericZoneID = tonumber(zoneFilter)
     local exactMapID = numericZoneID and ns.ClassificationIsPositiveInteger(numericZoneID)
 
-    local categoryNames
-    if categoryFilter ~= "" then
-        categoryNames = {}
-        for key, category in pairs(self.categoryByKey or {}) do
-            categoryNames[key] = {
-                key = ns.ClassificationNormalizeText(key),
-                name = ns.ClassificationNormalizeText(category.name),
-            }
-        end
+    local categoryNames = {}
+    for key, category in pairs(self.categoryByKey or {}) do
+        categoryNames[key] = {
+            key = ns.ClassificationNormalizeText(key),
+            name = ns.ClassificationNormalizeText(category.name),
+        }
     end
 
     local rows = self:GetIndexedRows()
@@ -117,19 +139,43 @@ function ns:SearchEntries(query, categoryFilter, zoneFilter, limit)
             or (exactMapID and row.mapID == numericZoneID)
             or (not exactMapID and Contains(row.searchZone, zoneFilter))
 
-        if zoneMatches then
+        local enabledMatches = true
+        if type(enabled) == "table" then
+            enabledMatches = false
+            for key in pairs(row.allCategories or {}) do
+                if enabled[key] == true then
+                    enabledMatches = true
+                    break
+                end
+            end
+        end
+
+        if zoneMatches and enabledMatches then
             local textMatches = query == "" or Contains(row.searchName, query)
                 or Contains(row.searchSub, query)
-            local categoryMatches = categoryFilter == ""
             local matchedCategory = nil
 
+            -- A category name is a valid search term: the map column filter
+            -- matches those too, so both surfaces answer the same question.
+            if not textMatches and query ~= "" then
+                for key in pairs(row.allCategories or {}) do
+                    local names = categoryNames[key]
+                    if names and Contains(names.name, query) then
+                        textMatches = true
+                        matchedCategory = key
+                        break
+                    end
+                end
+            end
+
+            local categoryMatches = categoryFilter == ""
             if not categoryMatches then
                 for key in pairs(row.categories or {}) do
                     local names = categoryNames[key]
                     if names and (Contains(names.key, categoryFilter)
                         or Contains(names.name, categoryFilter)) then
                         categoryMatches = true
-                        matchedCategory = key
+                        if not matchedCategory then matchedCategory = key end
                         break
                     end
                 end
@@ -161,7 +207,10 @@ end
 --   categories = optional enabled-category set (db.categories); nil enables all.
 --   limit      = rows kept per category after sorting (default 100).
 -- }
--- Returns sections in category-group order plus meta { shown = n, capped = boolean }.
+-- Returns sections in category-group order plus meta
+-- { shown = n, capped = boolean, groupCounts = { all = n, [group] = n } }.
+-- The counts are locations, so a place listed under two categories counts
+-- once per group and once in total.
 -- Rows are per indexed entry so the categories shown always match the entry itself;
 -- the waypoint target stays the shared node.
 function ns:BrowseEntries(options)
@@ -212,7 +261,8 @@ function ns:BrowseEntries(options)
         local category = order[index]
         if enabled == nil or enabled[category.key] == true then
             local section = { key = category.key, group = category.group, name = category.name,
-                icon = category.icon, total = 0, capped = false, rows = {} }
+                icon = category.icon, total = 0, rowCount = 0, capped = false, rows = {},
+                nodes = {} }
             sections[#sections + 1] = section
             sectionByKey[category.key] = section
         end
@@ -225,18 +275,43 @@ function ns:BrowseEntries(options)
         singleZone = mapCount == 1
     end
 
+    -- The counts describe places on the map, not list rows: one location that
+    -- is listed under two categories is still one location.
+    local groupCounts, groupNodes = {}, {}
+    local allNodes = {}
+
     local rows = self:GetIndexedRows()
     for index = 1, #rows do
         local row = rows[index]
         local inScope = not mapScope or mapScope[row.mapID] == true
         if inScope and (query == "" or Contains(row.searchName, query)
-            or Contains(row.searchSub, query)) then
+            or Contains(row.searchSub, query)
+            or Contains(row.searchCategories or "", query)) then
             local cats = row.allCategories
             if type(cats) == "table" then
                 for key in pairs(cats) do
                     local section = sectionByKey[key]
                     if section then
-                        section.total = section.total + 1
+                        section.rowCount = section.rowCount + 1
+                        local node = row.node
+                        if not section.nodes[node] then
+                            section.nodes[node] = true
+                            section.total = section.total + 1
+                        end
+                        local group = section.group
+                        local nodes = groupNodes[group]
+                        if not nodes then
+                            nodes = {}
+                            groupNodes[group] = nodes
+                        end
+                        if not nodes[node] then
+                            nodes[node] = true
+                            groupCounts[group] = (groupCounts[group] or 0) + 1
+                        end
+                        if not allNodes[node] then
+                            allNodes[node] = true
+                            groupCounts.all = (groupCounts.all or 0) + 1
+                        end
                         -- Within one map the cache order already equals the
                         -- display order, so only the capped rows need tables.
                         if not singleZone or #section.rows < limit then
@@ -268,19 +343,18 @@ function ns:BrowseEntries(options)
         local section = sections[index]
         if not singleZone then
             table.sort(section.rows, LessRow)
-            section.total = #section.rows
-        end
-        if section.total > limit then
-            if not singleZone then
-                for rowIndex = section.total, limit + 1, -1 do section.rows[rowIndex] = nil end
+            if #section.rows > limit then
+                for rowIndex = #section.rows, limit + 1, -1 do section.rows[rowIndex] = nil end
             end
+        end
+        if section.rowCount > limit then
             section.capped = true
             capped = true
         end
         shown = shown + #section.rows
     end
 
-    return sections, { shown = shown, capped = capped }
+    return sections, { shown = shown, capped = capped, groupCounts = groupCounts }
 end
 
 --------------------------------------------------------------------------------------------
@@ -371,11 +445,17 @@ function ns:CreateSearchUI()
     frame.categoryInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     frame.zoneInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 
+    local hint = Journal.Body(frame, 11,
+        "Search covers the categories enabled in the Wayfinder settings. The name box also matches a category such as \"auctioneer\". Right-click a result to set a waypoint.",
+        ns.Colors.textMuted, "LEFT")
+    hint:SetPoint("TOPLEFT", 24, -126)
+    hint:SetWidth(SEARCH_WIDTH - 48)
+
     frame.status = Journal.Body(frame, 13, "Enter a name, category, or zone to search.", ns.Colors.muted, "LEFT")
-    frame.status:SetPoint("TOPLEFT", 24, -128)
+    frame.status:SetPoint("TOPLEFT", 24, -150)
     frame.status:SetWidth(SEARCH_WIDTH - 48)
 
-    local page = Journal.Page(frame, 16, -150, -16, 16)
+    local page = Journal.Page(frame, 16, -172, -16, 16)
     frame.scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
     frame.scroll:SetPoint("TOPLEFT", 8, -8)
     frame.scroll:SetPoint("BOTTOMRIGHT", -28, 8)
@@ -418,7 +498,7 @@ function ns:CreateSearchUI()
 
             local results, reason = ns:SearchEntries(
                 frame.queryInput:GetText(), frame.categoryInput:GetText(),
-                frame.zoneInput:GetText(), RESULT_LIMIT)
+                frame.zoneInput:GetText(), RESULT_LIMIT, ns.db and ns.db.categories)
 
             for index = 1, #results do
                 local result = results[index]
@@ -431,10 +511,10 @@ function ns:CreateSearchUI()
                     row.background = Journal.Solid(row, ns.Colors.pageHover)
                     row.background:SetAllPoints()
                     row.background:SetAlpha(0)
-                    row.name = Journal.Body(row, 15, "", ns.Colors.ink, "LEFT")
+                    row.name = Journal.Body(row, 15, "", ns.Colors.text, "LEFT")
                     row.name:SetPoint("TOPLEFT", 9, -7)
                     row.name:SetPoint("TOPRIGHT", -8, -7)
-                    row.detail = Journal.Body(row, 12, "", ns.Colors.inkMuted, "LEFT")
+                    row.detail = Journal.Body(row, 12, "", ns.Colors.textMuted, "LEFT")
                     row.detail:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -4)
                     row.detail:SetPoint("TOPRIGHT", -8, -27)
                     row:SetScript("OnEnter", function(self) self.background:SetAlpha(1) end)
@@ -456,8 +536,15 @@ function ns:CreateSearchUI()
                 row.name:SetText(entry.name or "Unknown NPC")
                 local sub = type(entry.sub) == "string" and entry.sub ~= "" and (" · " .. entry.sub) or ""
                 local cats = EntryCategoryNames(entry)
-                row.detail:SetText(("%s%s  |  %s  |  %.1f, %.1f"):format(
-                    result.mapName, sub, cats, result.node.x * 100, result.node.y * 100))
+                -- The category the query matched leads the line, so the reason
+                -- for the hit is obvious.
+                local matched = ""
+                if result.matchedCategory then
+                    local category = ns.categoryByKey and ns.categoryByKey[result.matchedCategory]
+                    if category then matched = "|cffd4af37" .. category.name .. "|r · " end
+                end
+                row.detail:SetText(("%s%s%s  |  %s  |  %.1f, %.1f"):format(
+                    matched, result.mapName, sub, cats, result.node.x * 100, result.node.y * 100))
                 row:Show()
             end
 

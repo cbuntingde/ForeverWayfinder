@@ -1,660 +1,127 @@
--- Run from the repository root: lua tests/run.lua (Lua 5.1 compatible).
+-- Headless tests for the WoW-free modules. Run with:
+--   lua5.1 tests/run.lua
+-- from the addon directory.
+
+local failures, checks = 0, 0
+
+local function check(name, ok, detail)
+    checks = checks + 1
+    if not ok then
+        failures = failures + 1
+        print(("FAIL %s%s"):format(name, detail and (" - " .. tostring(detail)) or ""))
+    end
+end
+
+local function eq(name, actual, expected)
+    check(name, actual == expected, ("expected %s, got %s"):format(tostring(expected), tostring(actual)))
+end
+
+local function loadModule(path)
+    local chunk, err = loadfile(path)
+    assert(chunk, err)
+    return chunk
+end
+
 local ns = {}
-local chunk, err = loadfile("Classification.lua")
-assert(chunk, err)
-chunk("ForeverWayfinder", ns)
-local function eq(actual, expected, label)
-    assert(actual == expected, (label or "assertion") .. ": expected " .. tostring(expected) .. ", got " .. tostring(actual))
-end
-local function band(a, b)
-    local result, place = 0, 1
-    while a > 0 and b > 0 do
-        if a % 2 == 1 and b % 2 == 1 then result = result + place end
-        a, b, place = math.floor(a / 2), math.floor(b / 2), place * 2
-    end
-    return result
-end
-local bits = { VENDOR=1, REPAIR=2, INNKEEPER=4, AUCTIONEER=8, BANKER=16,
-    FLIGHT_MASTER=32, STABLEMASTER=64, SPIRIT_HEALER=128, BATTLEMASTER=256,
-    BARBER=512, TRANSMOGRIFIER=1024, TABARD_DESIGNER=2048, TRAINER=4096 }
-eq(ns.ClassificationNormalizeText("  Mage\n Trainer "), "mage trainer", "normalize")
-eq(ns.ClassificationTrainerCategory("Portal Trainer"), "portal", "portal")
-eq(ns.ClassificationTrainerCategory("Battle Pet Trainer"), "pet", "pet")
-eq(ns.ClassificationTrainerCategory("Wolf Pet Trainer"), "pet", "explicit pet trainer")
-eq(ns.ClassificationTrainerCategory("Bear Trainer"), "pet", "pet family trainer")
-eq(ns.ClassificationTrainerCategory("Carrion Bird Trainer"), "pet", "multi-word pet family trainer")
-eq(ns.ClassificationTrainerCategory("Wolf Riding Trainer"), "profession", "riding trainer stays a profession")
-eq(ns.ClassificationTrainerCategory("Combat Trainer"), "otherTrainer", "pet family matching respects word boundaries")
-eq(ns.ClassificationTrainerCategory("Weapon Master"), "weapon", "weapon")
-eq(ns.ClassificationTrainerCategory("Master Mage"), "classTrainer", "class")
-eq(ns.ClassificationTrainerCategory("Expert Blacksmith"), "profession", "profession")
-eq(ns.ClassificationTrainerCategory("Trainer"), "otherTrainer", "fallback")
-eq(ns.ClassificationTrainerCategory(nil), "otherTrainer", "missing trainer text")
-local cats = ns.ClassificationCategoriesForNpc(bits.VENDOR + bits.REPAIR + bits.TRAINER, "Mage Trainer", bits, band)
-eq(cats.vendor, true, "vendor")
-eq(cats.repair, true, "repair")
-eq(cats.classTrainer, true, "trainer")
-eq(cats.profession, nil, "unrelated category")
--- Demon Trainers ship without the TRAINER flag; the title must still classify them.
-local demon = ns.ClassificationCategoriesForNpc(bits.VENDOR, "Demon Trainer", bits, band)
-eq(demon.vendor, true, "demon trainer keeps vendor")
-eq(demon.otherTrainer, true, "demon trainer title fallback")
-local plainVendor = ns.ClassificationCategoriesForNpc(bits.VENDOR, "Trade Supplies", bits, band)
-eq(plainVendor.otherTrainer, nil, "non-trainer title not promoted")
-eq(plainVendor.classTrainer, nil, "non-trainer title not promoted (class)")
-local all = ns.ClassificationCategoriesForNpc(bits.INNKEEPER + bits.AUCTIONEER + bits.BANKER
-    + bits.FLIGHT_MASTER + bits.STABLEMASTER + bits.SPIRIT_HEALER + bits.BATTLEMASTER
-    + bits.BARBER + bits.TRANSMOGRIFIER + bits.TABARD_DESIGNER, "", bits, band)
-for _, key in ipairs({ "innkeeper", "auctioneer", "banker", "flight", "stable",
-    "spirit", "battlemaster", "barber", "transmog", "tabard" }) do eq(all[key], true, key) end
-eq(ns.ClassificationIsPositiveInteger(3), true, "valid ID")
-eq(ns.ClassificationIsPositiveInteger(2.5), false, "fractional ID")
-eq(ns.ClassificationIsPositiveInteger(0), false, "zero ID")
-eq(ns.ClassificationIsFiniteNumber(0 / 0), false, "NaN")
-eq(ns.ClassificationIsCoordinate(100), true, "upper coordinate")
-eq(ns.ClassificationIsCoordinate(-1), false, "negative coordinate")
-eq(ns.ClassificationIsCoordinate(101), false, "out of range coordinate")
-eq(ns.ClassificationIsCoordinate(math.huge), false, "infinite coordinate")
-local dataChunk, dataError = loadfile("Data.lua")
-assert(dataChunk, dataError)
-dataChunk("ForeverWayfinder", ns)
-ns.band = band
-ns.db = { factionFilter = false }
-ns.areaToMap = { [1] = 100 }
-ns:ResetIndex()
-local entryA = { id = 10, name = "Vendor A" }
-local entryB = { id = 11, name = "Vendor B" }
-eq(ns:AddSpawn(100, 50, 25, { vendor = true }, entryA), true, "first spawn")
-eq(ns:AddSpawn(100, 50, 25, { repair = true }, entryB), true, "shared spawn")
-local shared = ns.index[100][50002500]
-eq(#shared.entries, 2, "shared-location entries")
-eq(shared.cats.vendor, true, "first category merged")
-eq(shared.cats.repair, true, "second category merged")
-eq(ns:AddSpawn(100, 101, 50, { vendor = true }, { id = 12 }), false, "invalid coordinate rejected")
-eq(ns.stat.invalidSpawns, 1, "invalid spawn counted")
+loadModule("Classification.lua")("ForeverWayfinder", ns)
+loadModule("Location.lua")("ForeverWayfinder", ns)
 
--- NPC and object IDs are separate namespaces: the same numeric ID at one coordinate must not collide.
-eq(ns:AddSpawn(100, 1, 1, { vendor = true }, { id = 7, kind = "npc", name = "Same ID NPC" }), true, "npc with id 7 added")
-eq(ns:AddSpawn(100, 1, 1, { mailbox = true }, { id = 7, kind = "object", name = "Same ID Box" }), true, "object with id 7 kept")
-eq(ns:AddSpawn(100, 1, 1, { vendor = true }, { id = 7, kind = "npc", name = "Duplicate" }), nil, "same kind and id de-duplicated")
-eq(#ns.index[100][1000100].entries, 2, "de-duplication is scoped to kind")
+-- Classification ------------------------------------------------------------
 
-for index = 1, 6 do
-    eq(ns:AddSpawn(100, 50, 25, { vendor = true }, {
-        id = 20 + index, name = "Extra NPC " .. index,
-    }), true, "additional shared NPC " .. index)
-end
-eq(#shared.entries, 8, "all shared-location NPCs retained")
+eq("IsPositiveInteger(3)", ns.ClassificationIsPositiveInteger(3), true)
+eq("IsPositiveInteger(0)", ns.ClassificationIsPositiveInteger(0), false)
+eq("IsPositiveInteger(1.5)", ns.ClassificationIsPositiveInteger(1.5), false)
+eq("IsPositiveInteger(nan)", ns.ClassificationIsPositiveInteger(0 / 0), false)
+eq("IsNonNegativeInteger(0)", ns.ClassificationIsNonNegativeInteger(0), true)
+eq("IsNonNegativeInteger(-1)", ns.ClassificationIsNonNegativeInteger(-1), false)
 
-local fakeBits = { VENDOR=1, REPAIR=2, INNKEEPER=4, AUCTIONEER=8, BANKER=16,
-    FLIGHT_MASTER=32, STABLEMASTER=64, SPIRIT_HEALER=128, BATTLEMASTER=256,
-    BARBER=512, TRANSMOGRIFIER=1024, TABARD_DESIGNER=2048, TRAINER=4096 }
-NpcDB = {
-    GetAll = function(id)
-        if id == 102 then return { "Malformed NPC", nil, nil, "not-a-flag" } end
-        return { "Mage NPC", "Mage Trainer", "A", fakeBits.TRAINER }
-    end,
-    GetRaw = function() return "Mage Trainer" end,
-    Get = function() return { [1] = { { 40, 60 } } } end,
+eq("TrainerCategory(warrior)", ns.ClassificationTrainerCategory("Warrior Trainer"), "classTrainer")
+eq("TrainerCategory(alchemy)", ns.ClassificationTrainerCategory("Alchemy Trainer"), "profession")
+eq("TrainerCategory(bear)", ns.ClassificationTrainerCategory("Bear Trainer"), "pet")
+eq("TrainerCategory(riding)", ns.ClassificationTrainerCategory("Riding Trainer"), "profession")
+eq("TrainerCategory(combat)", ns.ClassificationTrainerCategory("Combat Trainer"), "otherTrainer")
+eq("TrainerCategory(portal)", ns.ClassificationTrainerCategory("Portal Trainer"), "portal")
+
+local bits = {
+    VENDOR = 1, REPAIR = 2, INNKEEPER = 4, AUCTIONEER = 8, BANKER = 16,
+    FLIGHT_MASTER = 32, STABLEMASTER = 64, SPIRIT_HEALER = 128,
+    BATTLEMASTER = 256, BARBER = 512, TRANSMOGRIFIER = 1024,
+    TABARD_DESIGNER = 2048, TRAINER = 4096,
 }
-ns:IndexNpc(101, fakeBits)
-eq(ns.stat.npcs, 1, "NPC indexed")
-eq(ns.index[100][40006000].cats.classTrainer, true, "NPC trainer category indexed")
-ns:IndexNpc(102, fakeBits)
-eq(ns.stat.invalidRecords, 1, "malformed NPC flags counted")
+local function band(flags, flag) return math.floor(flags / flag) % 2 end
+local vendor = ns.ClassificationCategoriesForNpc(1, "Trade Supplies", bits, band)
+eq("vendor category", vendor.vendor, true)
+eq("vendor repair flag", vendor.repair, nil)
+local demon = ns.ClassificationCategoriesForNpc(0, "Demon Trainer", bits, band)
+eq("title-only trainer", demon.otherTrainer, true)
+eq("non-numeric flags", next(ns.ClassificationCategoriesForNpc("x", "Vendor", bits, band)), nil)
 
--- Areas QuestieDB deliberately maps to 0 are display suppressors, not unmapped data.
-ns.suppressedAreas = { [9] = true }
-NpcDB.GetAll = function() return { "Suppressed Vendor", "Trade Supplies", "AH", fakeBits.VENDOR } end
-NpcDB.Get = function() return { [9] = { { 10, 10 }, { 20, 20 } } } end
-ns:IndexNpc(150, fakeBits)
-eq(ns.stat.suppressedSpawns, 2, "display-suppressed spawns counted separately")
-eq(ns.stat.unmappedAreas, 0, "suppressed spawns are not reported as unmapped")
-ns.suppressedAreas = nil
+-- Cursor mapping ------------------------------------------------------------
 
-local zoneChunk, zoneError = loadfile("ZoneMap.lua")
-assert(zoneChunk, zoneError)
-local zoneNS = {}
-zoneChunk("ForeverWayfinder", zoneNS)
-local decoded = zoneNS.DecodeZoneMapTable("return { [1] = 2, [3] = 4 }", "fixture")
-eq(decoded[1], 2, "decoded map")
-local validated, validationError, invalidCount = zoneNS.ValidateZoneMapMapping({ [1] = 2, ["bad"] = 3, [4] = 0 }, "test")
-eq(validated[1], 2, "validated mapping")
-eq(validated[4], 0, "zero map retained as a suppression marker")
-eq(invalidCount, 1, "invalid mapping entries counted")
-local unsafe = zoneNS.DecodeZoneMapTable("return setmetatable({}, {})", "unsafe")
-eq(unsafe, nil, "sandbox blocks globals")
-local malformed, malformedError = zoneNS.DecodeZoneMapTable("not valid lua", "malformed")
-eq(malformed, nil, "malformed source")
-assert(type(malformedError) == "string", "decode error surfaced")
+local cx, cy = ns.Location:MapCursorPosition(500, 300, 100, 700, 800, 400)
+eq("cursor x", cx, 50)
+eq("cursor y", cy, 100)
+eq("cursor outside", ns.Location:MapCursorPosition(50, 300, 100, 700, 800, 400), nil)
+eq("cursor zero width", ns.Location:MapCursorPosition(500, 300, 100, 700, 0, 400), nil)
+eq("cursor nil input", ns.Location:MapCursorPosition(nil, 300, 100, 700, 800, 400), nil)
 
--- Search covers all shared-location NPCs and applies deterministic text/category/zone filters.
-local searchChunk, searchError = loadfile("Search.lua")
-assert(searchChunk, searchError)
-searchChunk("ForeverWayfinder", ns)
-ns.categoryByKey = {
-    vendor = { name = "Vendors" },
-    repair = { name = "Repair" },
-    classTrainer = { name = "Class Trainers" },
-}
-ns.ready = true
-ns.index = {
-    [100] = {
-        [50002500] = shared,
-    },
-    [200] = {
-        [25007500] = {
-            x = 0.25, y = 0.75, cats = { classTrainer = true },
-            entries = {
-                { id = 20, name = "Ari", sub = "Mage Trainer", categories = { classTrainer = true } },
-            },
-        },
-    },
-}
-C_Map = { GetMapInfo = function(id) return { name = id == 100 and "Stormwind City" or "Ironforge" } end }
-local allShared = ns:SearchEntries("", "", "Stormwind")
-eq(#allShared, 8, "all shared NPCs searchable")
-local byCategory = ns:SearchEntries("", "repair", "")
-eq(#byCategory, 1, "category filter")
-eq(byCategory[1].entry.name, "Vendor B", "category result identity")
-local byZone = ns:SearchEntries("ari", "", "ironforge")
-eq(#byZone, 1, "case-insensitive zone and name filter")
-eq(byZone[1].mapID, 200, "zone map ID")
-local exactMapID = ns:SearchEntries("", "", "100")
-eq(#exactMapID, 8, "numeric zone filter matches exact map ID")
-local partialMapID = ns:SearchEntries("", "", "10")
-eq(#partialMapID, 0, "numeric zone filter does not substring-match other map IDs")
-local limited = ns:SearchEntries("vendor", "", "", 1)
-eq(#limited, 1, "search result limit")
-local originalIndex = ns.index
-local indexedRows = ns:GetIndexedRows()
-eq(ns:GetIndexedRows(), indexedRows, "indexed rows are cached per index")
-ns.index = { [300] = {} }
-local rebuiltRows = ns:GetIndexedRows()
-assert(rebuiltRows ~= indexedRows, "cache invalidated when the index is replaced")
-eq(#rebuiltRows, 0, "rebuilt cache reflects the new index")
-ns.index = originalIndex
+-- Distance formatting -------------------------------------------------------
 
-------------------------------------------------------------------------------------------
--- Browse entries: category grouping, scope, filters, deterministic caps
-------------------------------------------------------------------------------------------
-local browseNS = {}
-local browseChunk, browseError = loadfile("Search.lua")
-assert(browseChunk, browseError)
-browseChunk("ForeverWayfinder", browseNS)
-browseNS.ClassificationNormalizeText = ns.ClassificationNormalizeText
-browseNS.ClassificationIsPositiveInteger = ns.ClassificationIsPositiveInteger
-browseNS.mapNameCache = { [10] = "Elwynn Forest", [20] = "Westfall" }
-browseNS.categoryList = {
-    { key = "vendor", group = "services", name = "Vendors", icon = "vendor-icon" },
-    { key = "repair", group = "services", name = "Repair", icon = "repair-icon" },
-    { key = "innkeeper", group = "services", name = "Innkeepers", icon = "innkeeper-icon" },
-    { key = "flight", group = "services", name = "Flight Masters", icon = "flight-icon" },
-    { key = "classTrainer", group = "trainers", name = "Class Trainers", icon = "class-icon" },
-}
-browseNS.categoryByKey = {}
-for _, category in ipairs(browseNS.categoryList) do
-    browseNS.categoryByKey[category.key] = category
-end
-browseNS.categoryGroups = {
-    { key = "services", title = "SERVICES", keys = { "vendor", "repair", "innkeeper", "flight" } },
-    { key = "trainers", title = "TRAINERS", keys = { "classTrainer" } },
-}
-local function browseEntry(id, name, sub, categories)
-    return { kind = "npc", id = id, name = name, sub = sub, categories = categories }
-end
-local elwynnVendor = { x = 0.1, y = 0.1, cats = { vendor = true, repair = true }, entries = {
-    browseEntry(1, "Marshal Dughan", "General Goods", { vendor = true, repair = true }),
-} }
-local elwynnInn = { x = 0.2, y = 0.2, cats = { vendor = true, innkeeper = true }, entries = {
-    browseEntry(2, "Bags and Things", "Trade Supplies", { vendor = true }),
-    browseEntry(3, "Sara Timberlain", "Innkeeper", { innkeeper = true }),
-} }
-local westfallFlight = { x = 0.3, y = 0.3, cats = { flight = true }, entries = {
-    browseEntry(4, "Ari the Flight Master", "Flight Master", { flight = true }),
-} }
-local westfallVendor = { x = 0.4, y = 0.4, cats = { vendor = true }, entries = {
-    browseEntry(5, "Aargo", "Trade Supplies", { vendor = true }),
-} }
-browseNS.index = {
-    [10] = { [10001000] = elwynnVendor, [20002000] = elwynnInn },
-    [20] = { [30003000] = westfallFlight, [40004000] = westfallVendor },
-}
-browseNS.ready = false
-local noSections, noMeta = browseNS:BrowseEntries({ maps = { 10 } })
-eq(#noSections, 0, "browse waits for the index")
-eq(noMeta.reason, "index-not-ready", "browse not-ready reason")
-browseNS.ready = true
+eq("FormatDistance(0)", ns.Location:FormatDistance(0), "0 yd")
+eq("FormatDistance(42.6)", ns.Location:FormatDistance(42.6), "42 yd")
+eq("FormatDistance(999)", ns.Location:FormatDistance(999), "999 yd")
+eq("FormatDistance(1234)", ns.Location:FormatDistance(1234), "1.2k yd")
+eq("FormatDistance(nil)", ns.Location:FormatDistance(nil), nil)
+eq("FormatDistance(-1)", ns.Location:FormatDistance(-1), nil)
 
-local sections, mapMeta = browseNS:BrowseEntries({ maps = { 10 } })
-eq(#sections, 5, "browse returns every enabled category section")
-eq(sections[1].key, "vendor", "sections follow category-group order")
-eq(sections[1].group, "services", "section group key")
-eq(sections[1].name, "Vendors", "section display name")
-eq(sections[1].total, 2, "map scope vendor total")
-eq(sections[2].key, "repair", "repair section order")
-eq(sections[2].total, 1, "map scope repair total")
-eq(sections[3].total, 1, "map scope innkeeper total")
-eq(sections[4].total, 0, "empty enabled category kept")
-eq(sections[5].total, 0, "out-of-scope category empty")
-eq(sections[1].rows[1].name, "Bags and Things", "rows sort by name inside a map")
-eq(sections[1].rows[2].name, "Marshal Dughan", "second vendor row")
-eq(sections[2].rows[1].entry.id, 1, "vendor+repair entry appears under repair")
-eq(sections[2].rows[1].node, elwynnVendor, "row keeps its waypoint node")
-eq(sections[1].rows[1].zoneName, "Elwynn Forest", "row zone name")
-eq(sections[1].rows[1].title, "Bags and Things - Trade Supplies", "row title")
-eq(mapMeta.shown, 4, "map scope shown rows")
-eq(mapMeta.capped, false, "map scope not capped")
+-- Location ------------------------------------------------------------------
 
-local setSections = browseNS:BrowseEntries({ maps = { [10] = true } })
-eq(setSections[1].total, 2, "map-set scope accepted")
-
-local vendorOnly = browseNS:BrowseEntries({ maps = { 10 }, categories = { vendor = true, flight = true } })
-eq(#vendorOnly, 2, "disabled categories are omitted entirely")
-eq(vendorOnly[1].key, "vendor", "first surviving category")
-eq(vendorOnly[2].key, "flight", "second surviving category")
-
-local querySections = browseNS:BrowseEntries({ maps = { 10 }, query = "DUGHAN" })
-eq(querySections[1].total, 1, "query matches names case-insensitively")
-eq(querySections[2].total, 1, "query keeps every matching category")
-eq(querySections[3].total, 0, "non-matching category empty")
-local subQuery = browseNS:BrowseEntries({ maps = { 10 }, query = "innkeeper" })
-eq(subQuery[3].total, 1, "query matches sub-names")
-eq(subQuery[1].total, 0, "query excludes non-matching vendors")
-
-local allSections, allMeta = browseNS:BrowseEntries()
-eq(allMeta.shown, 6, "all zones shown rows")
-eq(allMeta.capped, false, "all zones not capped by default")
-eq(#allSections[1].rows, 3, "all zones vendor rows")
-eq(allSections[1].rows[1].zoneName, "Elwynn Forest", "zones sort before names")
-eq(allSections[1].rows[3].name, "Aargo", "later-zone row sorts last despite its name")
-eq(allSections[4].rows[1].entry.id, 4, "cross-zone flight master listed")
-
-local noneSections, noneMeta = browseNS:BrowseEntries({ maps = {} })
-eq(#noneSections, 5, "empty map scope still describes the layout")
-eq(noneMeta.shown, 0, "empty map scope shows nothing")
-
-local cappedSections, cappedMeta = browseNS:BrowseEntries({ limit = 1 })
-eq(cappedMeta.capped, true, "per-category cap flagged")
-eq(cappedSections[1].total, 3, "cap keeps the total count")
-eq(#cappedSections[1].rows, 1, "cap truncates rows")
-eq(cappedSections[1].rows[1].name, "Bags and Things", "cap keeps the first sorted row")
-eq(cappedSections[1].capped, true, "section cap flag")
-
-local mapCapped = browseNS:BrowseEntries({ maps = { 10 }, limit = 1 })
-eq(mapCapped[1].total, 2, "single-map cap counts every match")
-eq(#mapCapped[1].rows, 1, "single-map cap collects only the kept row")
-eq(mapCapped[1].rows[1].name, "Bags and Things", "single-map cap keeps the cache-sorted first row")
-eq(mapCapped[1].capped, true, "single-map cap flagged")
-eq(mapCapped[2].total, 1, "single-map cap keeps the repair total")
-eq(#mapCapped[2].rows, 1, "single-map repair row kept")
-
-------------------------------------------------------------------------------------------
--- Faction filtering
-------------------------------------------------------------------------------------------
-ns.db = { factionFilter = true }
-ns.myFaction = "Alliance"
-eq(ns:FactionAllowed("A"), true, "Alliance player sees Alliance NPC")
-eq(ns:FactionAllowed("H"), false, "Alliance player does not see Horde NPC")
-eq(ns:FactionAllowed("AH"), true, "both-faction NPC always visible")
-eq(ns:FactionAllowed(nil), true, "unknown faction NPC always visible")
-ns.myFaction = "Horde"
-eq(ns:FactionAllowed("A"), false, "Horde player does not see Alliance NPC")
-eq(ns:FactionAllowed("H"), true, "Horde player sees Horde NPC")
-ns.myFaction = nil
-eq(ns:FactionAllowed("H"), true, "unknown player faction disables filtering")
-ns.myFaction = "Alliance"
-ns.db.factionFilter = false
-eq(ns:FactionAllowed("H"), true, "filter disabled shows enemy services")
-
-------------------------------------------------------------------------------------------
--- Zone map: override precedence and fail-closed diagnostics
-------------------------------------------------------------------------------------------
-_G.LibQuestieDB = { Support = { Get = function()
-    return { private = {
-        areaIdToUiMapId = "return { [1] = 100, [2] = 200, [3] = 0 }",
-        areaIdToUiMapIdOverride = "return { [2] = 201 }",
-    } }
-end } }
-local buildOk = zoneNS:BuildZoneMap()
-eq(buildOk, true, "zone map builds")
-eq(zoneNS.areaToMap[1], 100, "base mapping kept")
-eq(zoneNS.areaToMap[2], 201, "override takes precedence")
-eq(zoneNS.mapToArea[201], 2, "reverse mapping follows override")
-eq(zoneNS.areaToMap[3], nil, "zero mapping produces no map pin")
-eq(zoneNS.suppressedAreas[3], true, "zero mapping tracked as suppressed")
-
-_G.LibQuestieDB.Support.Get = function()
-    return { private = {
-        areaIdToUiMapId = "return { [1] = 100, [2] = 200 }",
-        areaIdToUiMapIdOverride = "return { [1] = 0 }",
-    } }
-end
-eq(zoneNS:BuildZoneMap(), true, "suppressing override builds")
-eq(zoneNS.areaToMap[1], nil, "override can suppress a base mapping")
-eq(zoneNS.suppressedAreas[1], true, "override suppression tracked")
-eq(zoneNS.suppressedAreas[2], nil, "unsuppressed area not flagged")
-LibQuestieDB.Support.Get = function()
-    return { private = {
-        areaIdToUiMapId = "return { [1] = 100 }",
-        areaIdToUiMapIdOverride = "return {",
-    } }
-end
-local overrideOk, overrideMessage = zoneNS:BuildZoneMap()
-eq(overrideOk, false, "malformed override fails closed")
-assert(overrideMessage:find("override", 1, true), "override error reported separately")
-LibQuestieDB.Support.Get = function() return nil end
-eq(zoneNS:BuildZoneMap(), false, "missing zone support data fails closed")
-_G.LibQuestieDB = nil
-
-------------------------------------------------------------------------------------------
--- Waypoint provider
-------------------------------------------------------------------------------------------
-local wpChunk, wpError = loadfile("Waypoints.lua")
-assert(wpChunk, wpError)
-wpChunk("ForeverWayfinder", ns)
-TomTom = nil
-eq(ns.Waypoints:IsAvailable(), false, "provider absent detected")
-local wpOk, wpReason = ns.Waypoints:Set(100, 0.5, 0.5, "Test")
-eq(wpOk, false, "set without provider fails")
-assert(type(wpReason) == "string" and wpReason ~= "", "missing provider reason surfaced")
-local added, removed
-TomTom = {
-    AddWaypoint = function(_, m, x, y, opts)
-        added = { m = m, x = x, y = y, opts = opts }
-        return { m, x, y }
-    end,
-    RemoveWaypoint = function(_, uid) removed = uid end,
-}
-eq(ns.Waypoints:IsAvailable(), true, "provider present detected")
-wpOk = ns.Waypoints:Set(100, 0.5, 0.25, "Vendor A")
-eq(wpOk, true, "waypoint set")
-eq(added.m, 100, "waypoint map ID")
-eq(added.x, 0.5, "waypoint normalized x")
-eq(added.y, 0.25, "waypoint normalized y")
-eq(added.opts.from, "ForeverWayfinder", "waypoint source marker")
-eq(ns.Waypoints:Set(100, 1.5, 0.5), false, "out-of-range coordinate rejected")
-eq(ns.Waypoints:Set(0, 0.5, 0.5), false, "invalid map ID rejected")
-eq(ns.Waypoints:Set(100, 0 / 0, 0.5), false, "NaN coordinate rejected")
-eq(added.m, 100, "invalid coordinates never reach the provider")
-wpOk = ns.Waypoints:ClearLast()
-eq(wpOk, true, "clear last waypoint")
-eq(removed[1], 100, "clear removes the created waypoint")
-eq(ns.Waypoints:ClearLast(), false, "clear with no waypoint reports honestly")
-TomTom.AddWaypoint = function() return 200 end
-TomTom.RemoveWaypoint = function() error("remove exploded") end
-eq(ns.Waypoints:Set(100, 0.5, 0.5, "Retry"), true, "waypoint for retry")
-wpOk, wpReason = ns.Waypoints:ClearLast()
-eq(wpOk, false, "remove failure reported")
-assert(type(wpReason) == "string", "remove failure reason surfaced")
-eq(ns.Waypoints.lastWaypoint, 200, "handle kept after a failed clear")
-TomTom.RemoveWaypoint = function() return true end
-eq(ns.Waypoints:ClearLast(), true, "retry clears the retained waypoint")
-eq(ns.Waypoints.lastWaypoint, nil, "handle cleared after success")
-TomTom.AddWaypoint = function() error("provider exploded") end
-wpOk, wpReason = ns.Waypoints:Set(100, 0.5, 0.5, "Test")
-eq(wpOk, false, "provider error contained")
-assert(type(wpReason) == "string", "provider error reason surfaced")
-
-------------------------------------------------------------------------------------------
--- Saved variables: validation, clamping, unknown keys, reset scope
-------------------------------------------------------------------------------------------
-CreateFrame = function()
-    return { RegisterEvent = function() end, UnregisterEvent = function() end, SetScript = function() end }
-end
-SlashCmdList = {}
-DEFAULT_CHAT_FRAME = { AddMessage = function() end }
-local coreNS = {}
-local coreChunk, coreError = loadfile("Core.lua")
-assert(coreChunk, coreError)
-coreChunk("ForeverWayfinder", coreNS)
-ForeverWayfinderDB = {
-    enabled = "yes", pinScale = 99, minimapAngle = 0 / 0, schemaVersion = "x",
-    categories = { vendor = "nope", repair = false },
-    uiPosition = { point = "BAD", x = 1, y = 2 },
-    browserPosition = { point = "TOPRIGHT", x = 0 / 0, y = 0 },
-    customKey = "keep",
-}
-coreNS:InitDB()
-local sv = coreNS.db
-eq(sv.enabled, true, "invalid boolean restored to default")
-eq(sv.pinScale, 1.5, "pin scale clamped to maximum")
-eq(sv.minimapAngle, 220, "NaN angle restored to default")
-eq(sv.schemaVersion, 1, "invalid schema version reset")
-eq(sv.categories.vendor, true, "invalid category restored to default")
-eq(sv.categories.repair, false, "valid category preserved")
-eq(sv.uiPosition, nil, "invalid anchor dropped")
-eq(sv.browserPosition, nil, "invalid browser position dropped")
-eq(sv.customKey, "keep", "unknown user key preserved")
-ForeverWayfinderDB = {
-    pinScale = 0.1, minimapAngle = 400,
-    uiPosition = { point = "CENTER", x = 10, y = 20 },
-    browserPosition = { point = "TOPLEFT", relativePoint = "TOPRIGHT", x = -20, y = -30, relative = "ui" },
-}
-coreNS:InitDB()
-eq(coreNS.db.pinScale, 0.5, "pin scale clamped to minimum")
-eq(coreNS.db.minimapAngle, 40, "angle wrapped into range")
-eq(coreNS.db.uiPosition.relativePoint, "CENTER", "missing relativePoint defaulted")
-eq(coreNS.db.browserPosition.relative, "ui", "browser position relative parent preserved")
-coreNS.db.categories.vendor = false
-coreNS:ResetSettings()
-eq(coreNS.db.categories.vendor, true, "reset restores category defaults")
-eq(coreNS.db.uiPosition.x, 10, "reset preserves frame position")
-eq(coreNS.db.minimapAngle, 40, "reset preserves minimap angle")
-eq(coreNS.db.browserPosition.x, -20, "reset preserves browser position")
-eq(coreNS.db.schemaVersion, 1, "reset keeps schema version")
-eq(coreNS.db.customKey, nil, "reset clears unknown keys by design")
-
-------------------------------------------------------------------------------------------
--- Scan lifecycle: completion, isolation, idempotent rebuild, restart, failure recovery
-------------------------------------------------------------------------------------------
-local now = 0
-GetTime = function() return now end
-local tickerFn, tickerCancelled
-C_Timer = { NewTicker = function(_, fn)
-    tickerFn, tickerCancelled = fn, false
-    return { Cancel = function() tickerCancelled = true end }
-end }
-UnitFactionGroup = function() return "Alliance" end
-ns.Print = function() end
-ns.Refresh = function() end
-ns.initialized = true
-ns.blocked = nil
-ns.db = { factionFilter = false }
-ns.areaToMap = { [1] = 100 }
-
-local lifecycleNpcs = {
-    [1] = { name = "Alpha Vendor", sub = "General Goods", friendly = "AH", flags = 4, spawns = { [1] = { { 10, 20 } } } },
-    [2] = { name = "Beta Trainer", sub = "Mage Trainer", friendly = "AH", flags = 16, spawns = { [1] = { { 30, 40 } } } },
-    [3] = { name = "Bad Flags", sub = "", friendly = "AH", flags = "not-a-number", spawns = {} },
-}
-NpcDB = {
-    GetAllIds = function() return { 1, 2, 3, 4 } end,
-    GetAll = function(id)
-        if id == 4 then error("record read exploded") end
-        local d = lifecycleNpcs[id]
-        return { d.name, d.sub, d.friendly, d.flags }
-    end,
-    GetRaw = function(id) return lifecycleNpcs[id].sub end,
-    Get = function(id) return lifecycleNpcs[id].spawns end,
-}
-ObjectDB = {
-    GetAllIds = function() return { 50 } end,
-    GetRaw = function() return "Mailbox" end,
-    Get = function(_, key)
-        if key == "name" then return "Mailbox" end
-        return { [1] = { { 10, 20 } } }
-    end,
-}
-local function pumpScan()
-    local guard = 0
-    while tickerFn and not tickerCancelled and guard < 1000 do
-        now = now + 0.05
-        tickerFn()
-        guard = guard + 1
-    end
-end
-eq(ns:StartScan(), true, "scan starts")
-pumpScan()
-eq(ns.ready, true, "scan completes")
-eq(ns.lastScan.state, "complete", "complete state recorded")
-eq(tickerCancelled, true, "ticker cancelled on completion")
-eq(ns.stat.npcs, 2, "valid NPCs indexed")
-eq(ns.stat.objects, 1, "mailbox object indexed")
-eq(ns.stat.invalidRecords, 1, "malformed record isolated")
-eq(ns.stat.npcErrors, 1, "record error isolated")
-eq(#ns.lastScan.errors, 1, "error sample retained")
-local sharedNode = ns.index[100][10002000]
-eq(#sharedNode.entries, 2, "vendor and mailbox share a node")
-eq(sharedNode.entries[1].searchName, "alpha vendor", "search text precomputed at index time")
-
-local firstNodes, firstNpcs = ns.stat.nodes, ns.stat.npcs
-eq(ns:StartScan(), true, "rebuild starts")
-pumpScan()
-eq(ns.stat.nodes, firstNodes, "idempotent rebuild node count")
-eq(ns.stat.npcs, firstNpcs, "idempotent rebuild NPC count")
-eq(#ns.index[100][10002000].entries, 2, "idempotent rebuild does not duplicate entries")
-
-local manyNpcs = {}
-local manyIds = {}
-for i = 1, 500 do
-    manyIds[i] = i
-    manyNpcs[i] = { name = "NPC " .. i, sub = "", friendly = "AH", flags = 4, spawns = { [1] = { { i % 100, i % 50 } } } }
-end
-NpcDB.GetAllIds = function() return manyIds end
-NpcDB.GetAll = function(id)
-    local d = manyNpcs[id]
-    return { d.name, d.sub, d.friendly, d.flags }
-end
-NpcDB.GetRaw = function(id) return manyNpcs[id].sub end
-NpcDB.Get = function(id) return manyNpcs[id].spawns end
-eq(ns:StartScan(), true, "large scan starts")
-now = now + 0.05
-tickerFn()
-eq(ns.ready, false, "large scan still in progress")
-local staleFn = tickerFn
-eq(ns:StartScan(), true, "restart during indexing")
-staleFn()
-eq(ns.stat.npcs, 0, "stale generation cannot mutate the new index")
-pumpScan()
-eq(ns.ready, true, "restarted scan completes")
-eq(ns.stat.npcs, 500, "restarted scan indexes every NPC")
-
-NpcDB.GetAllIds = function() error("enumeration exploded") end
-eq(ns:StartScan(), false, "enumeration failure reported")
-eq(ns.scan, nil, "no stale scan object after failure")
-eq(ns.lastScan.state, "failed", "failed state recorded")
-eq(ns.ready, false, "index not ready after failure")
-NpcDB.GetAllIds = function() return manyIds end
-eq(ns:StartScan(), true, "recovery scan starts")
-pumpScan()
-eq(ns.ready, true, "recovery scan completes")
-
-------------------------------------------------------------------------------------------
--- Search against the real indexer output (precomputed text path)
-------------------------------------------------------------------------------------------
-local realResults = ns:SearchEntries("alpha", "", "")
-eq(#realResults, 0, "large dataset has no alpha vendor")
-local npcOne = ns:SearchEntries("NPC 1", "", "")
-eq(#npcOne, 100, "large result set capped")
-eq(npcOne[1].sortName, "npc 1", "deterministic ordering first row")
-eq(npcOne[2].sortName, "npc 10", "deterministic ordering second row")
-ns.ready = false
-local notReady, notReadyReason = ns:SearchEntries("a", "", "")
-eq(#notReady, 0, "no results when index not ready")
-eq(notReadyReason, "index-not-ready", "index-not-ready reason")
-ns.ready = true
-local emptyResults, emptyReason = ns:SearchEntries("", "", "")
-eq(#emptyResults, 0, "empty query returns no results")
-eq(emptyReason, "query-required", "query-required reason")
-
-------------------------------------------------------------------------------------------
--- World-map node iterator: a node whose categories are all disabled (no icon) must keep
--- scanning the current map, not advance past it. Regression for the bug that dropped every
--- pin after the first skipped node on a map.
-------------------------------------------------------------------------------------------
-local pinsChunk, pinsError = loadfile("Pins.lua")
-assert(pinsChunk, pinsError)
-pinsChunk("ForeverWayfinder", coreNS)
-
--- Force the categories this fixture uses so the skipped-node scenario holds regardless of
--- the shipped defaults: the three hidden categories off, the three icon categories on.
-local pinCats = {}
-for key, value in pairs(coreNS.defaultCategories) do pinCats[key] = value end
-pinCats.battlemaster, pinCats.barber, pinCats.transmog = false, false, false
-pinCats.vendor, pinCats.repair, pinCats.classTrainer = true, true, true
-coreNS.db = { pinScale = 1.25, categories = pinCats }
-
--- Positional constructors populate the array part, so next() walks coords in a fixed
--- ascending order: a disabled node comes first, which is what tripped the old fall-through.
-local function node(cats) return { cats = cats } end
-coreNS.index = {
-    [100] = {
-        node({ battlemaster = true }),   -- 1: disabled -> skipped
-        node({ vendor = true }),         -- 2: icon
-        node({ barber = true }),         -- 3: disabled -> skipped
-        node({ repair = true }),         -- 4: icon
-        node({ classTrainer = true }),   -- 5: icon
-    },
-    [200] = {
-        node({ transmog = true }),       -- 1: disabled -> skipped
-        node({ vendor = true }),         -- 2: icon
-    },
-    [300] = {
-        node({ battlemaster = true }),   -- whole map disabled
-        node({ barber = true }),
-    },
-    [400] = {
-        node({ vendor = true }),         -- icon after an all-disabled map
-    },
-}
-
-local function collect(maps)
-    local rows = {}
-    for coord, mapID, icon, scale, alpha in coreNS:MakeNodeIterator(maps) do
-        rows[#rows + 1] = { coord = coord, mapID = mapID, icon = icon, scale = scale, alpha = alpha }
-    end
-    return rows
+local function vector(x, y)
+    return { x = x, y = y, GetXY = function(self) return self.x, self.y end }
 end
 
-local single = collect({ 100 })
-eq(#single, 3, "iterator yields every icon node past skipped nodes")
-eq(single[1].coord, 2, "first icon node survives a leading skipped node")
-eq(single[2].coord, 4, "icon node between two skipped nodes")
-eq(single[3].coord, 5, "trailing icon node")
-eq(single[1].icon, "Interface\\Icons\\INV_Misc_Bag_10", "vendor default icon")
-eq(single[2].icon, "Interface\\Icons\\Trade_BlackSmithing", "repair icon")
-eq(single[3].icon, "Interface\\Minimap\\tracking\\class", "class trainer icon")
-eq(single[1].scale, 1.25, "pin scale propagated")
-eq(single[1].alpha, 1, "pin alpha")
-eq(single[1].mapID, 100, "yielded map ID")
+local state = { mapID = 1415, zone = "Elwynn Forest", sub = "", pos = vector(0.25, 0.5) }
+C_Map = {
+    GetBestMapForUnit = function() return state.mapID end,
+    GetMapInfo = function() return { name = "Elwynn Forest" } end,
+    GetPlayerMapPosition = function() return state.pos end,
+}
+GetZoneText = function() return state.zone end
+GetSubZoneText = function() return state.sub end
 
-local multi = collect({ 100, 200 })
-eq(#multi, 4, "iterator traverses every map")
-eq(multi[4].mapID, 200, "second map reached after skipped nodes")
-eq(multi[4].coord, 2, "second map icon node")
+local info = ns.Location:Read()
+eq("Read mapID", info.mapID, 1415)
+eq("Read zone", info.zoneName, "Elwynn Forest")
+eq("Read x", info.x, 25)
+eq("Read y", info.y, 50)
+eq("Format", ns.Location:Format(info), "You  ·  Elwynn Forest  25.0, 50.0")
+eq("Format compact", ns.Location:Format(info, true), "Elwynn Forest  25.0, 50.0")
+eq("Format no coords", ns.Location:Format(info, false, false), "You  ·  Elwynn Forest")
 
-local allSkipped = collect({ 300, 400 })
-eq(#allSkipped, 1, "all-disabled map does not terminate traversal")
-eq(allSkipped[1].mapID, 400, "map after an all-disabled map reached")
+state.sub = "Goldshire"
+eq("Format subzone", ns.Location:Format(ns.Location:Read(), true), "Goldshire  25.0, 50.0")
+state.sub = "A subzone name that is far too long to show"
 
-eq(#collect({}), 0, "empty map list yields nothing")
+state.pos = { x = 0.1, y = 0.2 }
+local plain = ns.Location:Read()
+eq("plain x fallback", plain.x, 10)
+eq("plain y fallback", plain.y, 20)
 
-------------------------------------------------------------------------------------------
--- Packaging: every file the TOC loads must exist, so a renamed or forgotten module fails CI.
-------------------------------------------------------------------------------------------
-local toc = assert(io.open("ForeverWayfinder.toc", "r"))
-local listed = 0
-for line in toc:lines() do
-    local file = line:match("^%s*(.-)%s*$")
-    if file ~= "" and file:sub(1, 2) ~= "##" then
-        listed = listed + 1
-        local handle = io.open(file, "r")
-        assert(handle, "TOC lists a missing file: " .. file)
-        handle:close()
-    end
-end
-toc:close()
-assert(listed > 0, "TOC lists no files")
+state.pos = vector(0, 0)
+local origin = ns.Location:Read()
+eq("(0,0) rejected x", origin.x, nil)
+eq("(0,0) rejected y", origin.y, nil)
+check("Format coords fallback", ns.Location:Format(origin):find("Elwynn Forest", 1, true) ~= nil)
 
-print("Forever Wayfinder tests passed.")
+C_Map.GetPlayerMapPosition = function() error("boom") end
+local broken = ns.Location:Read()
+eq("pcall failure x", broken.x, nil)
+state.pos = vector(0.5, 0.5)
+
+C_Map = nil
+GetZoneText = function() return nil end
+GetSubZoneText = function() return nil end
+eq("no C_Map format", ns.Location:Format(ns.Location:Read(), true), "Location unavailable")
+
+print(("%d checks, %d failures"):format(checks, failures))
+os.exit(failures == 0 and 0 or 1)

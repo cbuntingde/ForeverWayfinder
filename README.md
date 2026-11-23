@@ -6,7 +6,7 @@ Forever Wayfinder reads its location data from **QuestieDB** at runtime and disp
 
 ![Forever Wayfinder settings panel](docs/screenshot-settings.png)
 
-![Forever Wayfinder search window](docs/screenshot-search.png)
+![Forever Wayfinder map location browser](docs/screenshot-map.png)
 
 ## Features
 
